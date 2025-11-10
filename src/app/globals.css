@@ -5,22 +5,85 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --breakpoint-*: initial; /* optional: wipe defaults */
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1280px;
+
+  --color-background-first: #95c5f5;
+  --color-background-second: #bfd7ed;
+  --color-background-third: #145da0;
+  --color-background-fourth: #0c2d48;
+  --color-main: #2e8bc0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer components {
+  .button {
+    /* tailwind-ish stuff that @apply CAN do */
+    @apply relative block h-12 w-28 text-center font-bold uppercase cursor-pointer
+           text-white tracking-[2px] rounded-md border transition-all duration-700
+           overflow-hidden bg-background-first border-background-first;
+
+    /* raw css that @apply can’t do */
+    text-shadow: 0 1px 1px #c4ccfc;
+    /* inset + outer shadow like your SCSS */
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+      3px 3px 3px 3px var(--color-background-second);
+    font-size: 0.6em;
+  }
+
+  /* ✅ this is the part that was wrong before */
+  @media (min-width: 768px) {
+    .button {
+      font-size: 0.75em;
+      width: 10rem;
+    }
+  }
+
+  .button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 180px;
+    height: 100%;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 255, 255, 0.25),
+      transparent
+    );
+    transition: all 1s ease;
+  }
+
+  .button:hover {
+    text-shadow: 1px 1px 1px var(--color-background-third);
+  }
+
+  .button:hover::before {
+    left: 115%;
+  }
+}
+
+@keyframes flip {
+  0%,
+  80% {
+    transform: rotateY(360deg);
+  }
+}
+
+@layer utilities {
+  .animate-flip {
+    animation: flip 2s infinite;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "GlacialIndifference";
+}
+
+p {
+  user-select: none;
 }
