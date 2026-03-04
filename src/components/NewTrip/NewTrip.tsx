@@ -84,12 +84,12 @@ export default function NewTrip() {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-background-second text-center w-full">
+    <div className="page-center relative text-center">
       <form
         onSubmit={handleSubmit}
-        className="relative flex flex-col items-center gap-4 p-6 bg-white/10 rounded-lg shadow-lg w-full max-w-sm select-none"
+        className="surface-card relative flex flex-col items-center gap-4 p-6 rounded-xl w-full max-w-sm select-none"
       >
-        <p className="text-lg font-semibold text-white">
+        <p className="text-lg font-semibold text-slate-50">
           Introduce your desired location
         </p>
 
@@ -102,7 +102,7 @@ export default function NewTrip() {
             placeholder="Search destination..."
             onFocus={() => location && setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            className="w-full rounded-lg p-3 text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first shadow-md transition-all duration-300"
+            className="w-full rounded-lg p-3 text-black bg-white/95 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first shadow-md transition-all duration-300"
           />
 
           {showSuggestions && suggestions.length > 0 && (
@@ -128,7 +128,7 @@ export default function NewTrip() {
         </button>
 
         {loading && (
-          <p className="text-sm text-gray-300 mt-2 animate-pulse">
+          <p className="text-sm text-slate-100 mt-2 animate-pulse">
             Loading country data...
           </p>
         )}

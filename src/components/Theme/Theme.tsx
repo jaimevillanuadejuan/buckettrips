@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import nature from "../../assets/images/nature.jpg";
 import historic from "../../assets/images/historic.jpg";
@@ -15,7 +16,7 @@ export default function Theme() {
 
   const [themeChoice, setThemeChoice] = React.useState("");
 
-  const handleChoice = (event: React.MouseEvent<HTMLImageElement>) => {
+  const handleChoice = (event: React.MouseEvent<HTMLElement>) => {
     const chosen = event.currentTarget.getAttribute("data-theme") || "";
     setThemeChoice(chosen);
   };
@@ -37,29 +38,31 @@ export default function Theme() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background-second text-center">
+    <div className="page-center text-center">
       <form
-        className="flex flex-col items-center justify-center gap-8 p-10 bg-white/10 rounded-2xl shadow-2xl w-full max-w-lg backdrop-blur-sm"
+        className="surface-card flex flex-col items-center justify-center gap-8 p-10 rounded-2xl w-full max-w-lg"
         onSubmit={handleSubmit}
       >
-        <p className="text-xl font-semibold text-white">
+        <p className="text-xl font-semibold text-slate-50">
           Choose a theme for your trip to{" "}
-          <span className="text-background-first">{location}</span>
+          <span className="text-background-first font-bold">{location}</span>
         </p>
 
         <div className="flex flex-wrap justify-center items-center gap-8">
           <div
+            data-theme="nature"
+            onClick={handleChoice}
             className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ease-in-out transform hover:scale-105 shadow-lg border-4 ${
               themeChoice === "nature"
                 ? "border-background-first shadow-background-first/50 scale-105"
                 : "border-transparent hover:border-background-third"
             }`}
           >
-            <img
-              src={nature.src}
+            <Image
+              src={nature}
               alt="Nature theme"
-              data-theme="nature"
-              onClick={handleChoice}
+              width={176}
+              height={176}
               className="w-44 h-44 object-cover rounded-xl"
             />
             <span className="absolute bottom-0 left-0 w-full bg-black/50 text-white py-1 text-sm font-semibold">
@@ -68,17 +71,19 @@ export default function Theme() {
           </div>
 
           <div
+            data-theme="historic"
+            onClick={handleChoice}
             className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ease-in-out transform hover:scale-105 shadow-lg border-4 ${
               themeChoice === "historic"
                 ? "border-background-first shadow-background-first/50 scale-105"
                 : "border-transparent hover:border-background-third"
             }`}
           >
-            <img
-              src={historic.src}
+            <Image
+              src={historic}
               alt="Historic theme"
-              data-theme="historic"
-              onClick={handleChoice}
+              width={176}
+              height={176}
               className="w-44 h-44 object-cover rounded-xl"
             />
             <span className="absolute bottom-0 left-0 w-full bg-black/50 text-white py-1 text-sm font-semibold">

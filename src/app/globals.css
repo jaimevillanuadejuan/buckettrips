@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #bfd7ed;
+  --foreground: #0c2d48;
 }
 
 @theme {
-  --breakpoint-*: initial; /* optional: wipe defaults */
+  --breakpoint-*: initial;
   --breakpoint-tablet: 768px;
   --breakpoint-desktop: 1280px;
 
@@ -18,21 +18,41 @@
 }
 
 @layer components {
+  .page-center {
+    min-height: calc(100vh - 220px);
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .surface-card {
+    background: linear-gradient(
+      180deg,
+      rgba(12, 45, 72, 0.34),
+      rgba(12, 45, 72, 0.26)
+    );
+    border: 1px solid rgba(12, 45, 72, 0.45);
+    box-shadow: 0 14px 28px rgba(12, 45, 72, 0.2);
+    backdrop-filter: blur(2px);
+  }
+
+  .surface-chip {
+    background: rgba(12, 45, 72, 0.34);
+    border: 1px solid rgba(149, 197, 245, 0.3);
+  }
+
   .button {
-    /* tailwind-ish stuff that @apply CAN do */
     @apply relative block h-12 w-28 text-center font-bold uppercase cursor-pointer
            text-white tracking-[2px] rounded-md border transition-all duration-700
            overflow-hidden bg-background-first border-background-first;
 
-    /* raw css that @apply can’t do */
     text-shadow: 0 1px 1px #c4ccfc;
-    /* inset + outer shadow like your SCSS */
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1),
       3px 3px 3px 3px var(--color-background-second);
     font-size: 0.6em;
   }
 
-  /* ✅ this is the part that was wrong before */
   @media (min-width: 768px) {
     .button {
       font-size: 0.75em;
@@ -81,7 +101,31 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "GlacialIndifference";
+  font-family: "GlacialIndifference", sans-serif;
+}
+
+main {
+  min-height: calc(100vh - 88px);
+  background: var(--color-background-second);
+}
+
+main > * {
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2.5rem;
+}
+
+@media (min-width: 768px) {
+  main > * {
+    padding: 1.75rem 2rem 3rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  main > * {
+    padding: 2.25rem 3rem 3.5rem;
+  }
 }
 
 p {

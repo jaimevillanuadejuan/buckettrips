@@ -6,7 +6,7 @@ import logo from "../../assets/logo/logo.svg";
 
 const Dashboard = () => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background-second text-white">
+    <div className="page-center flex flex-col text-white">
       {/* __block */}
       <div className="flex flex-col justify-center items-center gap-8">
         {/* __content */}
