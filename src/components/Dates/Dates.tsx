@@ -28,33 +28,33 @@ export default function Dates() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background-second text-center w-full">
+    <div className="page-center text-center">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-6 bg-white/10 p-8 rounded-lg shadow-lg w-full max-w-md items-center"
+        className="surface-card flex flex-col gap-6 p-8 rounded-xl w-full max-w-md items-center"
       >
-        <p className="text-lg font-semibold text-white">
+        <p className="text-lg font-semibold text-slate-50">
           Select your travel dates for{" "}
-          <span className="text-background-first">{location}</span>
+          <span className="text-background-first font-bold">{location}</span>
         </p>
 
-        <label className="text-white text-sm w-full text-left">
+        <label className="text-slate-50 text-sm w-full text-left">
           Start Date:
           <input
             type="date"
             value={startDate ? startDate.toISOString().split("T")[0] : ""}
             onChange={(e) => setStartDate(new Date(e.target.value))}
-            className="w-full p-3 mt-1 rounded-md text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
+            className="w-full p-3 mt-1 rounded-md text-black bg-white/95 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
           />
         </label>
 
-        <label className="text-white text-sm w-full text-left">
+        <label className="text-slate-50 text-sm w-full text-left">
           End Date:
           <input
             type="date"
             value={endDate ? endDate.toISOString().split("T")[0] : ""}
             onChange={(e) => setEndDate(new Date(e.target.value))}
-            className="w-full p-3 mt-1 rounded-md text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
+            className="w-full p-3 mt-1 rounded-md text-black bg-white/95 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
           />
         </label>
 

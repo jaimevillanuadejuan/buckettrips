@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 
-interface ActivityProps {
+export interface ActivityProps {
   title: string;
   description: string;
   imageUrl: string;
@@ -17,9 +18,12 @@ export default function Activity({
     <div className="relative bg-white rounded-xl shadow-md hover:shadow-lg overflow-hidden transition-all duration-300 group w-full max-w-sm">
       {/* Image */}
       <div className="w-full h-48 overflow-hidden">
-        <img
+        <Image
           src={imageUrl}
           alt={title}
+          width={640}
+          height={384}
+          unoptimized
           className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
         />
       </div>

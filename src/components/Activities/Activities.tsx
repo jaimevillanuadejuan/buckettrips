@@ -1,16 +1,19 @@
 import React from "react";
 import Activity from "../Activity/Activity";
+import type { ActivityProps } from "../Activity/Activity";
 
-import "./Activities.scss";
-const Activities = ({ response }) => {
-  console.log(response);
+interface ActivitiesProps {
+  response?: ActivityProps[];
+}
+
+const Activities = ({ response = [] }: ActivitiesProps) => {
   return (
-    <ul className="activities">
-      {response !== undefined && response.length > 0
-        ? response.map((activity, index) => (
-            <Activity key={index} activity={activity} />
-          ))
-        : ""}
+    <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {response.map((activity, index) => (
+        <li key={`${activity.title}-${index}`}>
+          <Activity {...activity} />
+        </li>
+      ))}
     </ul>
   );
 };
