@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading/Loading";
+import { normalizeTripItinerary } from "@/types/itinerary";
+import type { SaveTripResult } from "@/types/saved-trip";
 
 interface ApiSuccessResponse {
   result?: unknown;
+  provider?: string;
+  model?: string;
 }
 
 interface ApiErrorResponse {
@@ -13,6 +17,8 @@ interface ApiErrorResponse {
 }
 
 const MAX_FOLLOW_UP_REFINEMENTS = 2;
+const BACKEND_BASE_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
 
 export default function TripLoadingPage() {
   const searchParams = useSearchParams();
@@ -26,6 +32,10 @@ export default function TripLoadingPage() {
   const [error, setError] = useState<string | null>(null);
   const [followUpAnswers, setFollowUpAnswers] = useState<string[]>([]);
   const [refinementCount, setRefinementCount] = useState(0);
+  const [sourceProvider, setSourceProvider] = useState<string | undefined>(
+    undefined
+  );
+  const [sourceModel, setSourceModel] = useState<string | undefined>(undefined);
 
   const fetchTripPlan = useCallback(
     async (answers: string[], signal?: AbortSignal): Promise<boolean> => {
@@ -57,6 +67,8 @@ export default function TripLoadingPage() {
         }
 
         setResponse("result" in data ? data.result ?? null : null);
+        setSourceProvider("provider" in data ? data.provider : undefined);
+        setSourceModel("model" in data ? data.model : undefined);
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
@@ -126,7 +138,55 @@ export default function TripLoadingPage() {
   };
 
   const handleSaveTripClick = () => {
-    // Frontend-only placeholder. Persistence is part of a separate change.
+    const save = async (): Promise<SaveTripResult> => {
+      const normalizedItinerary = normalizeTripItinerary(response);
+
+      if (!normalizedItinerary) {
+        return {
+          status: "error" as const,
+          message: "Cannot save: itinerary payload is not valid yet.",
+        };
+      }
+
+      try {
+        const saveRes = await fetch(`${BACKEND_BASE_URL}/trips`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location,
+            startDate,
+            endDate,
+            theme,
+            provider: sourceProvider,
+            model: sourceModel,
+            itinerary: normalizedItinerary,
+          }),
+        });
+
+        if (!saveRes.ok) {
+          const saveError = (await saveRes.json()) as ApiErrorResponse;
+          return {
+            status: "error" as const,
+            message:
+              saveError.error ??
+              "Failed to save trip. Please verify backend connection.",
+          };
+        }
+
+        return {
+          status: "success" as const,
+          message: "Trip saved successfully.",
+          showMyTripsLink: true,
+        };
+      } catch {
+        return {
+          status: "error" as const,
+          message: "Failed to save trip. Please verify backend connection.",
+        };
+      }
+    };
+
+    return save();
   };
 
   return (

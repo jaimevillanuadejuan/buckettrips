@@ -1,21 +1,90 @@
-"use client";
+﻿"use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { TripItinerary } from "@/types/itinerary";
+import type { SaveTripResult } from "@/types/saved-trip";
 
 interface ItineraryProps {
   itinerary: TripItinerary;
   isSubmitting: boolean;
   onSubmitFollowUpAnswers: (answers: string[]) => Promise<void> | void;
-  onSaveTripClick?: () => void;
+  onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
+  readOnly?: boolean;
 }
 
-function formatEur(value: number): string {
+function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "EUR",
+    currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function getOrdinalSuffix(day: number): string {
+  const remainder10 = day % 10;
+  const remainder100 = day % 100;
+
+  if (remainder10 === 1 && remainder100 !== 11) {
+    return "st";
+  }
+
+  if (remainder10 === 2 && remainder100 !== 12) {
+    return "nd";
+  }
+
+  if (remainder10 === 3 && remainder100 !== 13) {
+    return "rd";
+  }
+
+  return "th";
+}
+
+function formatDisplayDate(date: string): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(parsed);
+  const day = parsed.getUTCDate();
+
+  return `${month} ${day}${getOrdinalSuffix(day)}`;
+}
+
+function formatLongDate(date: string): string | null {
+  const parsed = new Date(`${date}T00:00:00Z`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const month = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(parsed);
+  const day = parsed.getUTCDate();
+  const year = parsed.getUTCFullYear();
+
+  return `${month} ${day}${getOrdinalSuffix(day)} ${year}`;
+}
+
+function formatTravelWindow(windowValue: string): string {
+  const parts = windowValue.split(/\s+to\s+/i);
+
+  if (parts.length !== 2) {
+    return windowValue;
+  }
+
+  const start = formatLongDate(parts[0]?.trim() ?? "");
+  const end = formatLongDate(parts[1]?.trim() ?? "");
+
+  if (!start || !end) {
+    return windowValue;
+  }
+
+  return `${start} to ${end}`;
 }
 
 function SectionList({ title, items }: { title: string; items: string[] }) {
@@ -47,11 +116,14 @@ export default function Itinerary({
   isSubmitting,
   onSubmitFollowUpAnswers,
   onSaveTripClick,
+  readOnly = false,
 }: ItineraryProps) {
   const [answers, setAnswers] = useState<string[]>(
     itinerary.followUpQuestions.map(() => "")
   );
-  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<SaveTripResult | null>(null);
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
   const saveNoticeTimerRef = useRef<number | null>(null);
 
   const clearSaveNotice = () => {
@@ -92,110 +164,139 @@ export default function Itinerary({
   };
 
   const handleSaveTrip = () => {
-    onSaveTripClick?.();
-    setSaveNotice("Save Trip will be enabled when My Trips backend is live.");
+    const run = async () => {
+      try {
+        setIsSavingTrip(true);
 
-    if (saveNoticeTimerRef.current !== null) {
-      window.clearTimeout(saveNoticeTimerRef.current);
-    }
+        const result: SaveTripResult = onSaveTripClick
+          ? await onSaveTripClick()
+          : {
+              status: "info",
+              message:
+                "Save Trip will be enabled when My Trips backend is live.",
+            };
 
-    saveNoticeTimerRef.current = window.setTimeout(() => {
-      setSaveNotice(null);
-      saveNoticeTimerRef.current = null;
-    }, 3000);
+        setSaveNotice(result);
+
+        if (saveNoticeTimerRef.current !== null) {
+          window.clearTimeout(saveNoticeTimerRef.current);
+        }
+
+        saveNoticeTimerRef.current = window.setTimeout(() => {
+          setSaveNotice(null);
+          saveNoticeTimerRef.current = null;
+        }, 3000);
+      } finally {
+        setIsSavingTrip(false);
+      }
+    };
+
+    void run();
   };
 
   const hasFollowUpQuestions = itinerary.followUpQuestions.length > 0;
 
+  const handleToggleDayCard = (dayKey: string) => {
+    setExpandedDayKey((current) => (current === dayKey ? null : dayKey));
+  };
+
   return (
     <div className="w-full mt-6 space-y-6">
-      <section className="surface-card rounded-2xl p-5 md:p-6 text-left">
-        <h3 className="text-lg font-bold text-white">
-          {itinerary.tripOverview.destination}
+      <section className="surface-card rounded-2xl p-5 tablet:p-6 text-left">
+        <h3 className="text-2xl tablet:text-3xl font-bold text-white">
+          Trip to {itinerary.tripOverview.destination}
         </h3>
-        <p className="text-sm text-slate-100">{itinerary.tripOverview.travelWindow}</p>
+        <p className="text-sm tablet:text-base text-slate-100 mt-2">
+          {formatTravelWindow(itinerary.tripOverview.travelWindow)}
+        </p>
         <p className="text-sm text-slate-100 mt-2">
-          Theme:{" "}
-          <span className="font-semibold text-background-first">
-            {itinerary.tripOverview.theme}
-          </span>
+          Theme: <span className="font-semibold text-day-accent">{itinerary.tripOverview.theme}</span>
         </p>
         <p className="text-sm text-slate-100 mt-1">
           Style: {itinerary.tripOverview.planningStyle}
         </p>
 
-        {itinerary.tripOverview.keyAssumptions.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-background-first">
-              Assumptions
-            </h4>
-            <ul className="mt-2 space-y-2">
-              {itinerary.tripOverview.keyAssumptions.map((assumption, index) => (
-                <li
-                  key={`assumption-${index}`}
-                  className="surface-chip text-sm text-slate-100 rounded-md p-2"
-                >
-                  {assumption}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
-
-      <section className="surface-card rounded-2xl p-5 md:p-6 text-left">
-        <h3 className="text-base font-bold text-white">Budget Snapshot</h3>
-        <p className="text-sm text-slate-100 mt-1">
-          {formatEur(itinerary.overallBudgetEstimateEur.low)} -{" "}
-          {formatEur(itinerary.overallBudgetEstimateEur.high)}
-        </p>
-        {itinerary.overallBudgetEstimateEur.notes.length > 0 && (
-          <ul className="mt-3 space-y-2">
-            {itinerary.overallBudgetEstimateEur.notes.map((note, index) => (
-              <li
-                key={`budget-note-${index}`}
-                className="surface-chip text-sm text-slate-100 rounded-md p-2"
-              >
-                {note}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 text-left">
-        {itinerary.dailyItinerary.map((day) => (
-          <article
-            key={`${day.day}-${day.date}`}
-            className="surface-card rounded-2xl p-5 md:p-6 space-y-4"
-          >
-            <header>
-              <h3 className="text-base font-bold text-white">
-                Day {day.day}: {day.date}
-              </h3>
-              <p className="text-sm text-background-first mt-1">{day.focus}</p>
-            </header>
-
-            <SectionList title="Morning" items={day.morning} />
-            <SectionList title="Afternoon" items={day.afternoon} />
-            <SectionList title="Evening" items={day.evening} />
-            <SectionList title="Budget Tips" items={day.budgetTips} />
-            <SectionList title="Logistics Notes" items={day.logisticsNotes} />
-            <SectionList title="Reservation Alerts" items={day.reservationAlerts} />
-
-            <p className="text-sm text-slate-100">
-              Estimated daily budget:{" "}
-              <span className="font-semibold">
-                {formatEur(day.estimatedBudgetEur.low)} -{" "}
-                {formatEur(day.estimatedBudgetEur.high)}
-              </span>
+        <div className="mt-5 pt-4 border-t border-white/15">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-100">
+            Budget Snapshot
+          </p>
+          <p className="text-lg font-semibold text-white mt-1">
+            {formatCurrency(itinerary.overallBudgetEstimateEur.low)} -{" "}
+            {formatCurrency(itinerary.overallBudgetEstimateEur.high)}
+          </p>
+          {itinerary.overallBudgetEstimateEur.notes.length > 0 && (
+            <p className="text-sm text-slate-100 mt-2 leading-relaxed">
+              {itinerary.overallBudgetEstimateEur.notes.join(" | ")}
             </p>
-          </article>
-        ))}
+          )}
+        </div>
       </section>
 
-      {hasFollowUpQuestions && (
-        <section className="surface-card rounded-2xl p-5 md:p-6 text-left">
+      <section className="grid grid-cols-1 gap-4 text-left tablet:[grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))] desktop:grid-cols-3">
+        {itinerary.dailyItinerary.map((day) => {
+          const dayKey = `${day.day}-${day.date}`;
+          const isExpanded = expandedDayKey === dayKey;
+
+          return (
+            <article
+              key={dayKey}
+              className={`surface-card rounded-2xl p-5 tablet:p-6 overflow-hidden transition-all duration-500 ease-out ${
+                isExpanded
+                  ? "max-h-[42rem] desktop:col-span-2"
+                  : "max-h-[11rem] desktop:col-span-1"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => handleToggleDayCard(dayKey)}
+                className="w-full flex items-start justify-between gap-3 text-left"
+              >
+                <div>
+                  <p className="text-xs uppercase tracking-wide font-semibold text-slate-100">
+                    Day {day.day} - {formatDisplayDate(day.date)}
+                  </p>
+                  <p className="text-base font-bold text-day-accent mt-1">
+                    {day.focus}
+                  </p>
+                </div>
+                <span className="text-lg font-bold text-white leading-none">
+                  {isExpanded ? "-" : "+"}
+                </span>
+              </button>
+
+              <div
+                className={`overflow-hidden transition-all duration-500 ease-out ${
+                  isExpanded
+                    ? "max-h-[28rem] opacity-100 mt-4"
+                    : "max-h-0 opacity-0 mt-0"
+                }`}
+              >
+                <div className="itinerary-scrollbar max-h-[24rem] overflow-y-auto pr-1 grid grid-cols-1 tablet:grid-cols-2 gap-4">
+                  <SectionList title="Morning" items={day.morning} />
+                  <SectionList title="Afternoon" items={day.afternoon} />
+                  <SectionList title="Evening" items={day.evening} />
+                  <SectionList title="Budget Tips" items={day.budgetTips} />
+                  <SectionList title="Logistics Notes" items={day.logisticsNotes} />
+                  <SectionList
+                    title="Reservation Alerts"
+                    items={day.reservationAlerts}
+                  />
+                  <p className="text-sm text-slate-100 tablet:col-span-2">
+                    Estimated daily budget:{" "}
+                    <span className="font-semibold">
+                      {formatCurrency(day.estimatedBudgetEur.low)} -{" "}
+                      {formatCurrency(day.estimatedBudgetEur.high)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      {hasFollowUpQuestions && !readOnly && (
+        <section className="surface-card rounded-2xl p-5 tablet:p-6 text-left">
           <h3 className="text-base font-bold text-white">
             Refine this plan with follow-up answers
           </h3>
@@ -226,18 +327,56 @@ export default function Itinerary({
                 type="button"
                 className="button"
                 onClick={handleSaveTrip}
+                disabled={isSavingTrip}
               >
-                Save Trip
+                {isSavingTrip ? "Saving..." : "Save Trip"}
               </button>
             </div>
             {saveNotice && (
-              <p className="surface-chip rounded-md px-3 py-2 text-sm text-slate-50">
-                {saveNotice}
-              </p>
+              <div className="surface-chip rounded-md px-3 py-2 text-sm text-slate-50 flex flex-wrap items-center gap-2">
+                <span>{saveNotice.message}</span>
+                {saveNotice.status === "success" && saveNotice.showMyTripsLink && (
+                  <Link
+                    href="/my-trips"
+                    className="font-semibold text-slate-50 transition-opacity hover:opacity-85"
+                  >
+                    View my trips
+                  </Link>
+                )}
+              </div>
             )}
           </form>
+        </section>
+      )}
+
+      {!hasFollowUpQuestions && !readOnly && (
+        <section className="surface-card rounded-2xl p-5 tablet:p-6 text-left">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="button"
+              onClick={handleSaveTrip}
+              disabled={isSavingTrip}
+            >
+              {isSavingTrip ? "Saving..." : "Save Trip"}
+            </button>
+          </div>
+          {saveNotice && (
+            <div className="surface-chip rounded-md px-3 py-2 mt-3 text-sm text-slate-50 flex flex-wrap items-center gap-2">
+              <span>{saveNotice.message}</span>
+              {saveNotice.status === "success" && saveNotice.showMyTripsLink && (
+                <Link
+                  href="/my-trips"
+                  className="font-semibold text-slate-50 transition-opacity hover:opacity-85"
+                >
+                  View my trips
+                </Link>
+              )}
+            </div>
+          )}
         </section>
       )}
     </div>
   );
 }
+

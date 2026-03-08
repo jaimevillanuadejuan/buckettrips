@@ -4,12 +4,16 @@ import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Dates() {
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const location = searchParams.get("location") || "";
+  const dateRangeError =
+    startDate && endDate && endDate < startDate
+      ? `End Date can't be set to a day before Start date. Please select a date later than [${startDate}].`
+      : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,13 +21,21 @@ export default function Dates() {
       setError("Please select both start and end dates");
       return;
     }
+
+    if (endDate < startDate) {
+      setError(
+        `End Date can't be set to a day before Start date. Please select a date later than [${startDate}].`
+      );
+      return;
+    }
+
     setError(null);
 
     // Navigate to the Theme step, passing current data as URL params
     router.push(
       `/new-trip/theme?location=${encodeURIComponent(location)}&startDate=${
-        startDate.toISOString().split("T")[0]
-      }&endDate=${endDate.toISOString().split("T")[0]}`
+        startDate
+      }&endDate=${endDate}`
     );
   };
 
@@ -42,8 +54,13 @@ export default function Dates() {
           Start Date:
           <input
             type="date"
-            value={startDate ? startDate.toISOString().split("T")[0] : ""}
-            onChange={(e) => setStartDate(new Date(e.target.value))}
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              if (error) {
+                setError(null);
+              }
+            }}
             className="w-full p-3 mt-1 rounded-md text-black bg-white/95 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
           />
         </label>
@@ -52,13 +69,21 @@ export default function Dates() {
           End Date:
           <input
             type="date"
-            value={endDate ? endDate.toISOString().split("T")[0] : ""}
-            onChange={(e) => setEndDate(new Date(e.target.value))}
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              if (error) {
+                setError(null);
+              }
+            }}
             className="w-full p-3 mt-1 rounded-md text-black bg-white/95 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-background-first"
           />
         </label>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {(dateRangeError || error) && (
+          <p className="text-red-400 text-sm">{dateRangeError || error}</p>
+        )}
 
         <button
           type="submit"

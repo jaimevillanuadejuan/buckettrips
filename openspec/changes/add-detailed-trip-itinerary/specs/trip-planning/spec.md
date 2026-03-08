@@ -43,6 +43,51 @@ The system SHALL render the generated itinerary in structured sections rather th
 - **THEN** the UI displays trip overview, budget summary, and day-by-day cards
 - **AND** each day shows morning/afternoon/evening plans with logistics and reservation notes
 
+#### Scenario: Budget summary integrated in overview card
+- **WHEN** the trip overview is rendered
+- **THEN** budget snapshot values are presented within the main overview container
+- **AND** no nested budget sub-card/container is shown
+
+#### Scenario: Near-schema response normalization
+- **WHEN** the model returns near-schema JSON (for example string values where arrays or follow-up objects are expected)
+- **THEN** the loading page normalizes the payload into the UI itinerary shape when possible
+- **AND** the itinerary continues rendering as structured cards instead of raw JSON text fallback
+
+### Requirement: Responsive Daily Card Grid Breakpoints
+The system SHALL render itinerary daily cards with explicit responsive breakpoints.
+
+#### Scenario: Mobile default layout
+- **WHEN** viewport width is below `768px`
+- **THEN** daily itinerary cards render in a single-column stack
+
+#### Scenario: Tablet adaptive layout
+- **WHEN** viewport width is at least `768px` and below `1280px`
+- **THEN** daily itinerary cards start as one-per-row on narrower tablet widths
+- **AND** expand up to two-per-row when horizontal space allows
+
+#### Scenario: Desktop fixed three-column layout
+- **WHEN** viewport width is at least `1280px`
+- **THEN** daily itinerary cards render in three columns per row
+
+### Requirement: Compact Interactive Daily Cards
+The system SHALL present daily itinerary cards in a compact state by default and reveal full details on user interaction.
+
+#### Scenario: Compact default card
+- **WHEN** itinerary cards are initially rendered
+- **THEN** each card shows only day label, formatted date, and daily planning title
+- **AND** card height is capped for visual consistency
+
+#### Scenario: Expand card details with animation
+- **WHEN** a user clicks a daily card container
+- **THEN** the card expands with a smooth animation to reveal detailed sections
+- **AND** expanded card content remains scrollable within a practical max-height
+- **AND** on desktop the expanded card can span additional horizontal space
+
+#### Scenario: Date label and contrast improvements
+- **WHEN** daily card headers are rendered
+- **THEN** dates are formatted as `Month DayOrdinal` (for example `Feb 15th`)
+- **AND** daily planning titles use a dedicated high-contrast accent color token from global theme variables
+
 ### Requirement: Show Save Trip UI Affordance Before Persistence Rollout
 The system SHALL expose a Save Trip button in the itinerary view before backend persistence is implemented.
 

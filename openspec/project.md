@@ -7,6 +7,7 @@ BucketTrips helps users generate themed travel itineraries after selecting a des
 - Next.js App Router
 - TypeScript + React
 - Google Gemini API (REST)
+- External NestJS + Prisma + PostgreSQL backend for saved trips
 
 ## Conventions
 - API routes validate request input before calling external services.

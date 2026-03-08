@@ -14,6 +14,7 @@
   --color-background-second: #bfd7ed;
   --color-background-third: #145da0;
   --color-background-fourth: #0c2d48;
+  --color-day-accent: #ffd166;
   --color-main: #2e8bc0;
 }
 
@@ -32,7 +33,6 @@
       rgba(12, 45, 72, 0.34),
       rgba(12, 45, 72, 0.26)
     );
-    border: 1px solid rgba(12, 45, 72, 0.45);
     box-shadow: 0 14px 28px rgba(12, 45, 72, 0.2);
     backdrop-filter: blur(2px);
   }
@@ -48,7 +48,8 @@
            overflow-hidden bg-background-first border-background-first;
 
     text-shadow: 0 1px 1px #c4ccfc;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.1),
       3px 3px 3px 3px var(--color-background-second);
     font-size: 0.6em;
   }
@@ -82,6 +83,30 @@
 
   .button:hover::before {
     left: 115%;
+  }
+
+  .itinerary-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--foreground) transparent;
+  }
+
+  .itinerary-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .itinerary-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  .itinerary-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--foreground);
+    border: 2px solid transparent;
+    border-radius: 999px;
+  }
+
+  .itinerary-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--foreground);
   }
 }
 
@@ -130,4 +155,14 @@ main > * {
 
 p {
   user-select: none;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: none;
+  color: var(--foreground);
 }

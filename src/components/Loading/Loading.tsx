@@ -3,7 +3,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import Itinerary from "@/components/Itinerary/Itinerary";
-import { isTripItinerary } from "@/types/itinerary";
+import { normalizeTripItinerary } from "@/types/itinerary";
+import type { SaveTripResult } from "@/types/saved-trip";
 
 interface LoadingProps {
   location: string;
@@ -11,7 +12,8 @@ interface LoadingProps {
   isLoading: boolean;
   error: string | null;
   onSubmitFollowUpAnswers: (answers: string[]) => Promise<void> | void;
-  onSaveTripClick?: () => void;
+  onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
+  readOnly?: boolean;
 }
 
 export default function Loading({
@@ -21,6 +23,7 @@ export default function Loading({
   error,
   onSubmitFollowUpAnswers,
   onSaveTripClick,
+  readOnly = false,
 }: LoadingProps) {
   const responseText =
     typeof response === "string"
@@ -28,11 +31,14 @@ export default function Loading({
       : response
       ? JSON.stringify(response, null, 2)
       : "";
-  const itinerary = isTripItinerary(response) ? response : null;
+  const itinerary = normalizeTripItinerary(response);
+  const shouldCenterLoadingState = isLoading && !error && !response;
 
   return (
     <motion.div
-      className="w-full min-h-[calc(100vh-220px)] flex flex-col items-center justify-start text-center pt-6"
+      className={`w-full min-h-[calc(100vh-220px)] flex flex-col items-center text-center ${
+        shouldCenterLoadingState ? "justify-center" : "justify-start pt-6"
+      }`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -74,6 +80,7 @@ export default function Loading({
           isSubmitting={isLoading}
           onSubmitFollowUpAnswers={onSubmitFollowUpAnswers}
           onSaveTripClick={onSaveTripClick}
+          readOnly={readOnly}
         />
       )}
 
