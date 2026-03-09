@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -14,11 +14,31 @@ interface ApiSuccessResponse {
 
 interface ApiErrorResponse {
   error?: string;
+  message?: string | string[];
 }
 
 const MAX_FOLLOW_UP_REFINEMENTS = 2;
 const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
+
+function getApiErrorMessage(
+  payload: ApiErrorResponse,
+  fallback: string
+): string {
+  if (typeof payload.error === "string" && payload.error.trim().length > 0) {
+    return payload.error;
+  }
+
+  if (typeof payload.message === "string" && payload.message.trim().length > 0) {
+    return payload.message;
+  }
+
+  if (Array.isArray(payload.message) && payload.message.length > 0) {
+    return payload.message.join(", ");
+  }
+
+  return fallback;
+}
 
 export default function TripLoadingPage() {
   const searchParams = useSearchParams();
@@ -43,7 +63,7 @@ export default function TripLoadingPage() {
         setIsLoading(true);
         setError(null);
 
-        const res = await fetch("/api/new-trip", {
+        const res = await fetch(`${BACKEND_BASE_URL}/api-trips`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal,
@@ -60,9 +80,7 @@ export default function TripLoadingPage() {
 
         if (!res.ok) {
           throw new Error(
-            "error" in data && data.error
-              ? data.error
-              : "Failed to generate itinerary"
+            getApiErrorMessage(data as ApiErrorResponse, "Failed to generate itinerary")
           );
         }
 
@@ -167,9 +185,10 @@ export default function TripLoadingPage() {
           const saveError = (await saveRes.json()) as ApiErrorResponse;
           return {
             status: "error" as const,
-            message:
-              saveError.error ??
-              "Failed to save trip. Please verify backend connection.",
+            message: getApiErrorMessage(
+              saveError,
+              "Failed to save trip. Please verify backend connection."
+            ),
           };
         }
 

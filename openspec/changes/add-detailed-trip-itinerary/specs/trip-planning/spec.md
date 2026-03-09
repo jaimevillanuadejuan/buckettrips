@@ -1,10 +1,10 @@
-## ADDED Requirements
+﻿## ADDED Requirements
 
 ### Requirement: Generate A Structured Itinerary From Selected Trip Criteria
 The system SHALL generate a detailed itinerary when the user has selected destination, start date, end date, and theme.
 
 #### Scenario: Successful itinerary generation
-- **WHEN** the client sends valid `location`, `startDate`, `endDate`, and `theme` to `POST /api/new-trip`
+- **WHEN** the client sends valid `location`, `startDate`, `endDate`, and `theme` to backend repo `buckettrips-backend` `POST /api/api-trips`
 - **THEN** the API returns a structured itinerary response with day-by-day activities
 - **AND** each day includes budget-aware recommendations and logistics notes
 - **AND** activities align with the selected theme (`nature` or `historic`)
@@ -31,7 +31,7 @@ The system SHALL include follow-up questions that help refine future itinerary i
 - **AND** each question explains why it matters for planning quality
 
 #### Scenario: Refining with user answers
-- **WHEN** the client submits follow-up answers in `followUpAnswers` to `POST /api/new-trip`
+- **WHEN** the client submits follow-up answers in `followUpAnswers` to backend repo `buckettrips-backend` `POST /api/api-trips`
 - **THEN** the itinerary is regenerated using those answers as additional planning context
 - **AND** the response still includes updated follow-up questions for a further iteration if needed
 
@@ -96,3 +96,5 @@ The system SHALL expose a Save Trip button in the itinerary view before backend 
 - **THEN** the UI shows a temporary message that saving will be enabled with the future My Trips backend
 - **AND** no persistence API call is made in this change
 - **AND** actual storage to database is out of scope for this change and tracked in a separate follow-up change
+
+
