@@ -1,5 +1,5 @@
-import Dates from "@/components/Dates/Dates";
+﻿import { redirect } from "next/navigation";
 
 export default function DatesPage() {
-  return <Dates />;
+  redirect("/new-trip");
 }

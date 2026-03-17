@@ -1,5 +1,5 @@
-import NewTrip from "@/components/NewTrip/NewTrip";
+import VoiceTripBuilder from "@/components/VoiceTripBuilder/VoiceTripBuilder";
 
 export default function NewTripPage() {
-  return <NewTrip />;
+  return <VoiceTripBuilder />;
 }

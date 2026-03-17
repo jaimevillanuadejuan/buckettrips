@@ -1,7 +1,5 @@
-"use client";
-
-import Theme from "@/components/Theme/Theme";
+﻿import { redirect } from "next/navigation";
 
 export default function ThemePage() {
-  return <Theme />;
+  redirect("/new-trip");
 }
