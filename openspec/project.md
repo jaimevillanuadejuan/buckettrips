@@ -1,14 +1,14 @@
-# Project Overview
+﻿# Project Overview
 
 ## Purpose
-BucketTrips helps users generate themed travel itineraries after selecting a destination, dates, and a trip style.
+BucketTrips helps travelers create highly personalized itineraries through a conversational intake flow.
 
 ## Stack
 - Next.js App Router
 - TypeScript + React
-- Google Gemini API (REST)
+- Backend-powered conversational trip APIs (`parse-intent`, `contextual-questions`, `confirm`)
 
 ## Conventions
-- API routes validate request input before calling external services.
-- Generated plans should be practical, budget-aware, and easy to refine iteratively.
-- Theme-specific planning currently supports `nature` and `historic`.
+- Trip intake is conversation-first: one question at a time across five phases.
+- Frontend calls backend APIs via `NEXT_PUBLIC_BACKEND_URL` for conversational intelligence and itinerary generation.
+- Generated plans should remain practical, budget-aware, and refineable via follow-up answers.

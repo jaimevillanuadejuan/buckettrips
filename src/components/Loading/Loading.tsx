@@ -3,7 +3,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import Itinerary from "@/components/Itinerary/Itinerary";
-import { isTripItinerary } from "@/types/itinerary";
+import { normalizeTripItinerary } from "@/types/itinerary";
+import type { SaveTripResult } from "@/types/saved-trip";
 
 interface LoadingProps {
   location: string;
@@ -11,7 +12,9 @@ interface LoadingProps {
   isLoading: boolean;
   error: string | null;
   onSubmitFollowUpAnswers: (answers: string[]) => Promise<void> | void;
-  onSaveTripClick?: () => void;
+  onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
+  onRetry?: () => void;
+  readOnly?: boolean;
 }
 
 export default function Loading({
@@ -21,6 +24,8 @@ export default function Loading({
   error,
   onSubmitFollowUpAnswers,
   onSaveTripClick,
+  onRetry,
+  readOnly = false,
 }: LoadingProps) {
   const responseText =
     typeof response === "string"
@@ -28,11 +33,14 @@ export default function Loading({
       : response
       ? JSON.stringify(response, null, 2)
       : "";
-  const itinerary = isTripItinerary(response) ? response : null;
+  const itinerary = normalizeTripItinerary(response);
+  const shouldCenterLoadingState = isLoading && !error && !response;
 
   return (
     <motion.div
-      className="w-full min-h-[calc(100vh-220px)] flex flex-col items-center justify-start text-center pt-6"
+      className={`w-full min-h-[calc(100vh-220px)] flex flex-col items-center text-center ${
+        shouldCenterLoadingState ? "justify-center" : "justify-start pt-6"
+      }`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -58,14 +66,24 @@ export default function Loading({
       </motion.p>
 
       {error && (
-        <motion.p
-          className="text-sm text-red-300 mt-4 max-w-2xl mx-auto px-4"
+        <motion.div
+          className="mt-4 max-w-2xl mx-auto px-4 flex flex-col items-center gap-3"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.5 }}
         >
-          {error}
-        </motion.p>
+          <p className="text-sm text-red-300 text-center">{error}</p>
+          {onRetry && (
+            <button
+              type="button"
+              className="button"
+              onClick={onRetry}
+              disabled={isLoading}
+            >
+              {isLoading ? "Retrying..." : "Try again"}
+            </button>
+          )}
+        </motion.div>
       )}
 
       {!error && !isLoading && itinerary && (
@@ -74,6 +92,7 @@ export default function Loading({
           isSubmitting={isLoading}
           onSubmitFollowUpAnswers={onSubmitFollowUpAnswers}
           onSaveTripClick={onSaveTripClick}
+          readOnly={readOnly}
         />
       )}
 

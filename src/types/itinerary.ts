@@ -44,6 +44,170 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function toStringArray(value: unknown): string[] {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .filter(
+        (item): item is string =>
+          typeof item === "string" && item.trim().length > 0
+      )
+      .map((item) => item.trim());
+  }
+
+  return [];
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeTheme(value: unknown): "nature" | "historic" {
+  if (value === "nature" || value === "historic") {
+    return value;
+  }
+
+  if (typeof value === "string" && value.toLowerCase().includes("hist")) {
+    return "historic";
+  }
+
+  return "nature";
+}
+
+function normalizeBudgetRange(value: unknown): BudgetRange {
+  if (!isObject(value)) {
+    return { low: 0, high: 0 };
+  }
+
+  return {
+    low: toNumber(value.low) ?? 0,
+    high: toNumber(value.high) ?? 0,
+  };
+}
+
+function normalizeDay(day: unknown, index: number): ItineraryDay | null {
+  if (!isObject(day)) {
+    return null;
+  }
+
+  return {
+    day: toNumber(day.day) ?? index + 1,
+    date: typeof day.date === "string" ? day.date : "TBD",
+    focus: typeof day.focus === "string" ? day.focus : "General exploration",
+    morning: toStringArray(day.morning),
+    afternoon: toStringArray(day.afternoon),
+    evening: toStringArray(day.evening),
+    estimatedBudgetEur: normalizeBudgetRange(day.estimatedBudgetEur),
+    budgetTips: toStringArray(day.budgetTips),
+    logisticsNotes: toStringArray(day.logisticsNotes),
+    reservationAlerts: toStringArray(day.reservationAlerts),
+  };
+}
+
+function normalizeFollowUps(value: unknown): FollowUpQuestion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry === "string" && entry.trim().length > 0) {
+        return {
+          question: entry.trim(),
+          whyItMatters: "Helps personalize activity priorities and pacing.",
+        };
+      }
+
+      if (
+        isObject(entry) &&
+        typeof entry.question === "string" &&
+        entry.question.trim().length > 0
+      ) {
+        return {
+          question: entry.question.trim(),
+          whyItMatters:
+            typeof entry.whyItMatters === "string" &&
+            entry.whyItMatters.trim().length > 0
+              ? entry.whyItMatters.trim()
+              : "Helps personalize activity priorities and pacing.",
+        };
+      }
+
+      return null;
+    })
+    .filter((entry): entry is FollowUpQuestion => entry !== null);
+}
+
+export function normalizeTripItinerary(value: unknown): TripItinerary | null {
+  if (typeof value === "string") {
+    try {
+      return normalizeTripItinerary(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const overview = isObject(value.tripOverview) ? value.tripOverview : null;
+  const dailyRaw = Array.isArray(value.dailyItinerary)
+    ? value.dailyItinerary
+    : [];
+  const overallBudget = isObject(value.overallBudgetEstimateEur)
+    ? value.overallBudgetEstimateEur
+    : {};
+
+  const normalized: TripItinerary = {
+    tripOverview: {
+      destination:
+        overview && typeof overview.destination === "string"
+          ? overview.destination
+          : "Selected destination",
+      travelWindow:
+        overview && typeof overview.travelWindow === "string"
+          ? overview.travelWindow
+          : "Travel dates not specified",
+      theme: normalizeTheme(overview?.theme),
+      planningStyle:
+        overview && typeof overview.planningStyle === "string"
+          ? overview.planningStyle
+          : "balanced, budget-aware planning",
+      keyAssumptions: toStringArray(overview?.keyAssumptions),
+    },
+    dailyItinerary: dailyRaw
+      .map((day, index) => normalizeDay(day, index))
+      .filter((day): day is ItineraryDay => day !== null),
+    overallBudgetEstimateEur: {
+      ...normalizeBudgetRange(overallBudget),
+      notes: toStringArray(overallBudget.notes),
+    },
+    followUpQuestions: normalizeFollowUps(value.followUpQuestions),
+  };
+
+  if (normalized.dailyItinerary.length === 0) {
+    return null;
+  }
+
+  return normalized;
+}
+
 export function isTripItinerary(value: unknown): value is TripItinerary {
   if (!isObject(value)) {
     return false;
