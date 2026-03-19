@@ -1,68 +1,107 @@
-﻿## ADDED Requirements
+﻿## Implemented: Voice-First Conversational Trip Intake
 
-### Requirement: Voice-First Conversational Trip Intake
-The system SHALL collect trip preferences through a voice-first conversational flow that preserves the five phases (`spark`, `context`, `depth`, `craft`, `confirm`) while presenting a single-screen voice agent UI.
+### Overview
+The trip creation flow was replaced with a voice-first conversational agent UI (`VoiceTripBuilder`). The user speaks naturally to a voice agent that collects all trip preferences through conversation, then generates a full itinerary via the backend.
 
-#### Scenario: Human-first conversation start
-- **WHEN** a user starts trip creation at `/new-trip`
-- **THEN** the UI begins in a neutral listening state with no scripted greeting
-- **AND** the user can start describing what they want in freeform speech
+---
 
-#### Scenario: Voice agent prompt cadence
-- **WHEN** the user mentions a destination (city or country)
-- **THEN** the voice agent responds naturally and transitions into follow-up prompts aligned to the existing workflow
-- **AND** the follow-up questions are phrased conversationally like a real travel advisor
+### Requirement: Voice Agent State Machine
+The system SHALL manage voice interaction through a single `Phase` state machine.
 
-### Requirement: Always-Listening Voice Input (English Only)
-The system SHALL support always-on voice input for trip intake in English.
+#### States
+- `idle` — mic on, not yet listening
+- `listening` — `SpeechRecognition` active, accumulating transcript
+- `processing` — utterance committed, API request in-flight
+- `speaking` — agent reply being spoken via `SpeechSynthesis`
 
-#### Scenario: Continuous listening
-- **WHEN** the user is in the trip intake UI
-- **THEN** voice capture remains active by default (English only)
-- **AND** the UI reflects listening vs speaking states
+#### Scenario: Full turn cycle
+- **WHEN** the user stops speaking (3s silence window elapses with no new transcript)
+- **THEN** the UI transitions from `listening` → `processing`
+- **WHEN** the backend returns an `agentReply`
+- **THEN** the UI transitions from `processing` → `speaking`
+- **WHEN** the utterance ends
+- **THEN** the UI transitions from `speaking` → `idle` → `listening`
 
-### Requirement: Dynamic Personalization Inputs
-The system SHALL support richer personalization inputs than destination/date/theme form fields.
+---
 
-#### Scenario: Rich preference capture
-- **WHEN** the user completes context and depth phases
-- **THEN** the system captures companions, budget posture, season intent, pace, interests, exclusions, and accommodation style
-- **AND** these values are persisted into a `TripContext` object
+### Requirement: Continuous Listening with Silence Detection
+The system SHALL use `continuous: true` SpeechRecognition and commit the transcript after `SILENCE_MS` (3000ms) of no new audio.
 
-### Requirement: Backend-Assisted Conversational Intelligence
-The system SHALL call backend conversational endpoints during intake.
+#### Scenario: Transcript accumulation
+- **WHEN** the user speaks across multiple recognition segments
+- **THEN** all final transcript segments are accumulated in `accTextRef`
+- **AND** the silence timer resets on every new result
+- **WHEN** silence elapses
+- **THEN** the full accumulated text is committed as a single utterance
 
-#### Scenario: Destination intent parsing
-- **WHEN** the user submits free-text destination intent
-- **THEN** the frontend calls `POST /api/trips/parse-intent`
-- **AND** stores resolved region and confidence in `TripContext.destination`
+---
 
-#### Scenario: Contextual follow-up generation
-- **WHEN** the user reaches craft phase
-- **THEN** the frontend calls `POST /api/trips/contextual-questions`
-- **AND** presents 2-3 contextual follow-up prompts
+### Requirement: Natural Conversation with Full History Context
+The system SHALL send the full conversation history with every turn so the backend LLM can extract context clues from any prior utterance.
+
+#### Scenario: Context extraction across turns
+- **WHEN** the user mentions companions in turn 1 ("I want to go with friends")
+- **AND** asks about destination in turn 3
+- **THEN** the backend extracts `companions.type=friends_small` from history
+- **AND** does not ask about companions again
+
+#### Scenario: Small talk handling
+- **WHEN** the user greets the agent ("hey how's it going")
+- **THEN** the agent responds warmly and naturally
+- **AND** pivots to trip planning in the same reply
+- **AND** never returns robotic phrases like "I hit a snag" or "I apologize"
+
+---
+
+### Requirement: TripContext Persistence
+The system SHALL build and persist a `TripContext` object throughout the conversation.
+
+#### Fields captured
+- `destination` — raw input + resolved region + confidence
+- `duration` — min/max days
+- `companions` — type + count + children flag
+- `budget` — tier
+- `travel_dates` — season + moods + exact start/end dates
+- `pace` — activity level + spontaneity
+- `interests` — from allowed enum list
+- `exclusions` — from allowed enum list
+- `accommodation` — style + tier
+- `contextual_answers` — free-form follow-up answers
+
+#### Scenario: Confirm and navigate
+- **WHEN** `nextStep === "confirm"` and exact dates are present
+- **THEN** `TripContext` is written to `sessionStorage`
+- **AND** the user is navigated to `/new-trip/loading`
+
+---
 
 ### Requirement: Voice Mode Visual Design
-The system SHALL render a ChatGPT Voice Mode-style UI to represent listening and speaking states.
+The system SHALL render a centered orb UI reflecting the current phase.
 
-#### Scenario: Listening state visuals
-- **WHEN** the agent is listening
-- **THEN** the circular voice orb shows a static, solid fill using `--color-background-first`
+#### Scenario: Listening state
+- Orb is static, solid fill using `--color-background-first`
+- Orb scale pulses with live audio level from `AnalyserNode`
 
-#### Scenario: Speaking state visuals
-- **WHEN** the agent is speaking
-- **THEN** the circular voice orb uses `--color-background-first` with an animated inner texture or motion effect
-- **AND** the motion is smooth and continuous
+#### Scenario: Speaking state
+- Orb shows a conic-gradient spin animation (`spin 5s linear infinite`)
 
-### Requirement: Conversational Confirm-To-Itinerary Generation
-The system SHALL generate itinerary output from conversational context via backend confirm endpoint.
+#### Scenario: Processing state
+- Orb shows a white pulse overlay (`animate-pulse`)
 
-#### Scenario: Confirm and generate
-- **WHEN** the user confirms exact dates and submits phase 5
-- **THEN** the frontend calls `POST /api/trips/confirm` with `TripContext`
-- **AND** `/new-trip/loading` renders the returned itinerary
+#### Scenario: Transcript
+- Collapsed by default at the bottom of the screen
+- Toggle shows last 10 turns (agent + user lines)
 
-#### Scenario: Follow-up refinement
-- **WHEN** the user submits follow-up answers after first itinerary draft
-- **THEN** the frontend calls `POST /api/trips/confirm` again with prior context plus `followUpAnswers`
-- **AND** renders an updated itinerary
+---
+
+### Requirement: Mic Control
+The system SHALL provide a mic toggle button using `BsMicFill` / `BsMicMuteFill` from `react-icons`.
+
+- Mic on → active fill style using `--color-background-first`
+- Mic off → muted style, recognition aborted, synthesis cancelled
+- Re-enabling mic restarts listening after 150ms debounce
+
+---
+
+### Requirement: Text Fallback
+The system SHALL render a text input form when `SpeechRecognition` is not available in the browser.
