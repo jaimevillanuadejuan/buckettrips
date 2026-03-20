@@ -1,7 +1,6 @@
 export interface SavedTripSummary {
   id: string;
   location: string;
-  theme: "nature" | "historic";
   startDate: string;
   endDate: string;
   provider?: string | null;

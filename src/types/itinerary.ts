@@ -6,7 +6,6 @@ export interface BudgetRange {
 export interface TripOverview {
   destination: string;
   travelWindow: string;
-  theme: "nature" | "historic";
   planningStyle: string;
   keyAssumptions: string[];
 }
@@ -75,18 +74,6 @@ function toNumber(value: unknown): number | null {
   }
 
   return null;
-}
-
-function normalizeTheme(value: unknown): "nature" | "historic" {
-  if (value === "nature" || value === "historic") {
-    return value;
-  }
-
-  if (typeof value === "string" && value.toLowerCase().includes("hist")) {
-    return "historic";
-  }
-
-  return "nature";
 }
 
 function normalizeBudgetRange(value: unknown): BudgetRange {
@@ -184,7 +171,6 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
         overview && typeof overview.travelWindow === "string"
           ? overview.travelWindow
           : "Travel dates not specified",
-      theme: normalizeTheme(overview?.theme),
       planningStyle:
         overview && typeof overview.planningStyle === "string"
           ? overview.planningStyle
@@ -230,7 +216,6 @@ export function isTripItinerary(value: unknown): value is TripItinerary {
   if (
     typeof overview.destination !== "string" ||
     typeof overview.travelWindow !== "string" ||
-    typeof overview.theme !== "string" ||
     typeof overview.planningStyle !== "string" ||
     !isStringArray(overview.keyAssumptions)
   ) {
