@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Loading from "@/components/Loading/Loading";
 import type { SaveTripResult } from "@/types/saved-trip";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { TripContext } from "@/types/trip-context";
+import { apiFetch } from "@/lib/api";
 
 interface ApiSuccessResponse {
   result?: unknown;
@@ -44,6 +46,8 @@ function getApiErrorMessage(
 export default function TripLoadingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const profileId = session?.user?.profileId;
   const location = searchParams.get("location") || "";
   const theme = searchParams.get("theme") || "";
   const startDate = searchParams.get("startDate") || "";
@@ -260,25 +264,23 @@ export default function TripLoadingPage() {
 
       const saveLocation =
         normalizedItinerary.tripOverview.destination || locationLabel;
-      const saveTheme = normalizedItinerary.tripOverview.theme;
 
       try {
-        const saveRes = await fetch(`${BACKEND_BASE_URL}/trips`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const saveRes = await apiFetch('/trips', {
+          method: 'POST',
           body: JSON.stringify({
             location: saveLocation,
             startDate: saveStartDate,
             endDate: saveEndDate,
-            theme: saveTheme,
             provider: sourceProvider,
             model: sourceModel,
             itinerary: normalizedItinerary,
           }),
-        });
+        }, profileId);
 
         if (!saveRes.ok) {
           const saveError = (await saveRes.json()) as ApiErrorResponse;
+          console.error('[save-trip] 400 error:', JSON.stringify(saveError));
           return {
             status: "error",
             message: getApiErrorMessage(

@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BucketTrips — Frontend
 
-## Getting Started
+Next.js 15 App Router frontend for BucketTrips, a conversational AI trip planner.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js 15 (App Router)
+- TypeScript + React
+- Tailwind CSS
+- NextAuth.js v5 (Auth.js) — Google OAuth
+- Deployed on Vercel
+
+## Auth
+
+Authentication uses NextAuth.js v5 with Google OAuth. On sign-in, the backend is called to upsert a profile. The session includes a `profileId` which is passed to backend API calls via `X-Profile-Id` and `X-Api-Key` headers.
+
+Required env vars:
+
+```
+AUTH_SECRET=
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080/api
+NEXT_PUBLIC_INTERNAL_API_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Trip Creation Flow
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Trip planning is fully conversational via `VoiceTripBuilder` — supports both voice and chat modes. The flow:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. User describes their trip naturally (destination, dates, companions, budget, interests)
+2. Backend extracts context turn-by-turn via `/trips/conversation`
+3. Once enough context is gathered, the backend generates a full itinerary via `/trips/confirm`
+4. User can refine the itinerary via `/trips/refine`
+5. User saves the trip — stored in PostgreSQL via the NestJS backend
 
-## Learn More
+The legacy theme-selection step (nature/historic) has been removed. Theme is no longer a field in the trip model or itinerary.
 
-To learn more about Next.js, take a look at the following resources:
+## Running locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+npm run dev
+```

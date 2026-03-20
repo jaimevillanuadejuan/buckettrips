@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Itinerary from "@/components/Itinerary/Itinerary";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SavedTripDetail } from "@/types/saved-trip";
-
-const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
+import { apiFetch } from "@/lib/api";
 
 export default function MyTripDetailPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = params.tripId;
+  const { data: session } = useSession();
+  const profileId = session?.user?.profileId;
   const [trip, setTrip] = useState<SavedTripDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export default function MyTripDetailPage() {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(`${BACKEND_BASE_URL}/trips/${tripId}`);
+        const response = await apiFetch(`/trips/${tripId}`, {}, profileId);
 
         if (response.status === 404) {
           throw new Error("Trip not found");

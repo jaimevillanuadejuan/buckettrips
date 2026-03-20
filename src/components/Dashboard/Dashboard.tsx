@@ -1,19 +1,18 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import logo from "../../assets/logo/logo.svg";
 
 const Dashboard = () => {
+  const { data: session } = useSession();
+
   return (
     <div className="page-center flex flex-col text-white">
-      {/* __block */}
       <div className="flex flex-col justify-center items-center gap-8">
-        {/* __content */}
         <div className="flex flex-col justify-center items-center gap-4 md:flex-row">
-          {/* __message */}
           <div className="relative flex justify-center items-center">
-            {/* __text */}
             <div className="text-5xl font-bold flex space-x-1">
               {"WELCOME".split("").map((char, i) => (
                 <span
@@ -49,7 +48,22 @@ const Dashboard = () => {
           priority
         />
 
-        <Link href="/new-trip">
+        {session?.user && (
+          <div className="flex flex-col items-center gap-2">
+            {session.user.image && (
+              <Image
+                src={session.user.image}
+                alt={session.user.name ?? "avatar"}
+                width={56}
+                height={56}
+                className="rounded-full"
+              />
+            )}
+            <p className="text-lg font-semibold">{session.user.name}</p>
+          </div>
+        )}
+
+        <Link href={session ? "/new-trip" : "/sign-in"}>
           <button className="button">Get Started</button>
         </Link>
       </div>

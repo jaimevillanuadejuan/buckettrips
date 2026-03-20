@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
 import type { SavedTripSummary } from "@/types/saved-trip";
-
-const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
+import { apiFetch } from "@/lib/api";
 
 export default function MyTripsPage() {
+  const { data: session } = useSession();
+  const profileId = session?.user?.profileId;
   const [trips, setTrips] = useState<SavedTripSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,10 +28,9 @@ export default function MyTripsPage() {
       try {
         setIsLoading(true);
         setError(null);
-
-        const response = await fetch(`${BACKEND_BASE_URL}/trips`);
-
+        const response = await apiFetch('/trips', {}, profileId);
         if (!response.ok) {
+          console.error('[my-trips] fetch failed:', response.status);
           throw new Error("Failed to load trips");
         }
 
@@ -51,9 +51,7 @@ export default function MyTripsPage() {
       setDeletingId(tripId);
       setError(null);
 
-      const response = await fetch(`${BACKEND_BASE_URL}/trips/${tripId}`, {
-        method: "DELETE",
-      });
+      const response = await apiFetch(`/trips/${tripId}`, { method: "DELETE" }, profileId);
 
       if (!response.ok && response.status !== 204) {
         throw new Error("Failed to delete trip");
@@ -61,7 +59,7 @@ export default function MyTripsPage() {
 
       setTrips((existing) => existing.filter((trip) => trip.id !== tripId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete trip");
+      console.error(err instanceof Error ? err.message : "Failed to delete trip");
     } finally {
       setDeletingId(null);
     }
@@ -85,16 +83,20 @@ export default function MyTripsPage() {
         </p>
       )}
 
-      {error && <p className="text-red-500 mt-6 font-semibold">{error}</p>}
-
       {!isLoading && sortedTrips.length === 0 && (
         <section
           className="rounded-2xl p-5 md:p-6 mt-6"
           style={{ background: "rgba(12,45,72,0.07)", border: "1px solid rgba(12,45,72,0.13)" }}
         >
           <p style={{ color: "var(--foreground)", opacity: 0.75 }}>
-            You do not have any saved trips yet. Generate one and click{" "}
-            <span className="font-semibold">Save Trip</span>.
+            You don&apos;t have any saved trips yet.{" "}
+            <Link
+              href="/new-trip"
+              className="font-semibold underline transition-opacity hover:opacity-70"
+              style={{ color: "var(--foreground)" }}
+            >
+              Create a new trip
+            </Link>
           </p>
         </section>
       )}
