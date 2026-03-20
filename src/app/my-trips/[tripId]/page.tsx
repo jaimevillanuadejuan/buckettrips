@@ -80,7 +80,10 @@ export default function MyTripDetailPage() {
       )}
 
       {!isLoading && trip && !normalizedItinerary && (
-        <section className="surface-card rounded-2xl p-5 md:p-6 mt-6">
+        <section
+          className="rounded-2xl p-5 md:p-6 mt-6"
+          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}
+        >
           <p className="text-red-300">
             This saved itinerary format is invalid and cannot be rendered.
           </p>

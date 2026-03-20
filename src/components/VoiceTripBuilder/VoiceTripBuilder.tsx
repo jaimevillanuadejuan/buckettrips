@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { BsMicFill, BsMicMuteFill } from "react-icons/bs";
 import type { TripContext } from "@/types/trip-context";
+import ChatView from "./ChatView";
 
 const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
@@ -57,7 +58,6 @@ function apiError(p: ApiErrorResponse, fallback: string): string {
   return fallback;
 }
 
-// ── phase machine ─────────────────────────────────────────────────────────────
 type Phase = "idle" | "listening" | "processing" | "speaking";
 
 export default function VoiceTripBuilder() {
@@ -93,11 +93,14 @@ export default function VoiceTripBuilder() {
   const [hasSpeechAPI,   setHasSpeechAPI]   = useState(true);
   const [transcript,     setTranscript]     = useState<Array<{ role: "agent" | "user"; text: string }>>([]);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [viewMode,       setViewMode]       = useState<"voice" | "chat">("voice");
+  const [lastTripDest,   setLastTripDest]   = useState<string | null>(null);
 
   // ── refs ──────────────────────────────────────────────────────────────────
-  const phaseRef       = useRef<Phase>("idle");
-  const micOnRef       = useRef(true);
-  const micBlockedRef  = useRef(false);
+  const phaseRef      = useRef<Phase>("idle");
+  const micOnRef      = useRef(true);
+  const micBlockedRef = useRef(false);
+  const viewModeRef   = useRef<"voice" | "chat">("voice");
   const recognitionRef = useRef<any>(null);
   const voicesRef      = useRef<SpeechSynthesisVoice[]>([]);
   const silenceRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,7 +110,6 @@ export default function VoiceTripBuilder() {
   const analyserRef    = useRef<AnalyserNode | null>(null);
   const streamRef      = useRef<MediaStream | null>(null);
   const rafRef         = useRef<number | null>(null);
-  // accumulate transcript text across multiple onresult events
   const accTextRef     = useRef("");
 
   const setPhaseSync = useCallback((p: Phase) => {
@@ -136,6 +138,14 @@ export default function VoiceTripBuilder() {
     load();
     window.speechSynthesis.onvoiceschanged = load;
     return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  // ── read last saved trip destination for chat intro ───────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("lastTripDestination");
+      if (raw) setLastTripDest(raw);
+    } catch { /* localStorage unavailable */ }
   }, []);
 
   // ── build context snapshot ────────────────────────────────────────────────
@@ -211,8 +221,6 @@ export default function VoiceTripBuilder() {
     if (u.contextual_answers) setContextualAnswers(prev => ({ ...prev, ...u.contextual_answers }));
   }, []);
 
-  // Full history kept in a ref so handleUtterance always reads the latest
-  // without needing it in the dependency array.
   const historyRef = useRef<Array<{ role: "agent" | "user"; text: string }>>([]);
 
   const addLine = useCallback((role: "agent" | "user", text: string) => {
@@ -221,7 +229,6 @@ export default function VoiceTripBuilder() {
     setTranscript(prev => [...prev.slice(-9), { role, text }]);
   }, []);
 
-  // ── forward declaration so speak ↔ startListening can reference each other ─
   const startListeningRef = useRef<() => void>(() => {});
 
   // ── speak ─────────────────────────────────────────────────────────────────
@@ -254,16 +261,33 @@ export default function VoiceTripBuilder() {
     if (voice) utt.voice = voice;
 
     utt.onend = () => {
+      clearTimeout(synthTimeout);
       setPhaseSync("idle");
-      startListeningRef.current();
+      setTimeout(() => startListeningRef.current(), 600);
     };
     utt.onerror = (e) => {
-      if ((e as SpeechSynthesisErrorEvent).error === "interrupted") return;
+      clearTimeout(synthTimeout);
+      const errCode = (e as SpeechSynthesisErrorEvent).error;
+      if (errCode === "interrupted") return;
       setPhaseSync("idle");
-      startListeningRef.current();
+      setTimeout(() => startListeningRef.current(), 600);
     };
 
     synth.speak(utt);
+
+    // Chromium bug: synthesis can stall silently — kick it after 250ms
+    setTimeout(() => {
+      if (synth.speaking) synth.resume();
+    }, 250);
+
+    // Safety fallback: if synthesis never fires onend within 15s, recover
+    const synthTimeout = setTimeout(() => {
+      if (phaseRef.current === "speaking") {
+        synth.cancel();
+        setPhaseSync("idle");
+        setTimeout(() => startListeningRef.current(), 300);
+      }
+    }, 15_000);
   }, [addLine, setPhaseSync]);
 
   // ── main conversation handler ─────────────────────────────────────────────
@@ -275,7 +299,6 @@ export default function VoiceTripBuilder() {
       return;
     }
 
-    // If a request is already in-flight, queue this one
     if (inFlightRef.current) {
       queuedRef.current = text;
       return;
@@ -297,7 +320,6 @@ export default function VoiceTripBuilder() {
         }),
       });
 
-      // If mic was turned off while waiting, still process the reply
       const data = (await res.json()) as ConversationResponse | ApiErrorResponse;
 
       if (!res.ok) {
@@ -329,12 +351,10 @@ export default function VoiceTripBuilder() {
         return;
       }
 
-      // speak() will restart listening when done
       speak(reply);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setError(msg);
-      // Don't speak a robotic error — just go back to listening so user can retry
       setPhaseSync("idle");
       startListeningRef.current();
     } finally {
@@ -359,12 +379,9 @@ export default function VoiceTripBuilder() {
     try { recognitionRef.current?.start(); } catch { /* already running */ }
   }, [setPhaseSync]);
 
-  // keep the ref in sync so speak() can call it without a stale closure
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
   // ── speech recognition ────────────────────────────────────────────────────
-  // Recreated only when handleUtterance changes (step/context change).
-  // continuous:true so the session stays open; we commit after SILENCE_MS of no new text.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -376,7 +393,7 @@ export default function VoiceTripBuilder() {
 
     const rec = new SR();
     rec.lang           = "en-US";
-    rec.continuous     = true;   // keep session open until we explicitly stop
+    rec.continuous     = true;
     rec.interimResults = true;
 
     rec.onstart = () => {
@@ -386,7 +403,8 @@ export default function VoiceTripBuilder() {
     };
 
     rec.onresult = (event: any) => {
-      // Don't process results while agent is speaking or we're already processing
+      // ignore results when not in voice mode or already processing/speaking
+      if (viewModeRef.current === "chat") return;
       if (phaseRef.current === "speaking" || phaseRef.current === "processing") return;
 
       let newFinal = "";
@@ -396,23 +414,17 @@ export default function VoiceTripBuilder() {
         }
       }
       newFinal = newFinal.trim();
+      if (newFinal) accTextRef.current = (accTextRef.current + " " + newFinal).trim();
 
-      if (newFinal) {
-        // Append to accumulated text
-        accTextRef.current = (accTextRef.current + " " + newFinal).trim();
-      }
-
-      // Reset the silence timer on every result (final or interim)
       if (silenceRef.current) clearTimeout(silenceRef.current);
       silenceRef.current = setTimeout(() => {
         silenceRef.current = null;
         const committed = accTextRef.current.trim();
         accTextRef.current = "";
         if (!committed) return;
-
-        // Stop recognition, transition to processing
-        try { rec.stop(); } catch { /* ignore */ }
+        // transition to processing before stopping so onend sees the right phase
         setPhaseSync("processing");
+        try { rec.stop(); } catch { /* ignore */ }
         void handleUtterance(committed);
       }, SILENCE_MS);
     };
@@ -420,11 +432,7 @@ export default function VoiceTripBuilder() {
     rec.onerror = (e: any) => {
       const code = e?.error;
       if (code === "aborted") return;
-      if (code === "no-speech") {
-        // no-speech just means silence — stay in listening, reset accumulator
-        accTextRef.current = "";
-        return;
-      }
+      if (code === "no-speech") { accTextRef.current = ""; return; }
       if (code === "not-allowed" || code === "service-not-allowed") {
         micBlockedRef.current = true;
         setError("Microphone blocked — allow mic access and click the mic button.");
@@ -436,16 +444,14 @@ export default function VoiceTripBuilder() {
     };
 
     rec.onend = () => {
-      // Only auto-restart if we're still in listening phase
-      // (processing/speaking manage their own restart via speak → startListening)
-      if (phaseRef.current === "listening" && micOnRef.current && !micBlockedRef.current) {
+      // only restart if still in listening phase (processing/speaking manage their own restart)
+      if (phaseRef.current === "listening" && micOnRef.current && !micBlockedRef.current && viewModeRef.current === "voice") {
         try { rec.start(); } catch { /* ignore */ }
       }
     };
 
     recognitionRef.current = rec;
 
-    // Auto-start on mount
     if (micOnRef.current && !micBlockedRef.current) {
       setTimeout(() => startListening(), 300);
     }
@@ -536,111 +542,158 @@ export default function VoiceTripBuilder() {
   const orbScale = 1 + Math.min(audioLevel * 1.8, 0.4);
 
   return (
-    <section className="min-h-[calc(100vh-130px)] w-full flex flex-col items-center justify-between py-10 px-6">
+    <section className="w-full flex flex-col items-center" style={{ height: "calc(100vh - 130px)", overflow: "hidden" }}>
 
-      {/* ── centre: orb + status + agent text ── */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center max-w-[520px] w-full">
-
-        {/* Orb */}
-        <div className="w-[200px] h-[200px] rounded-full flex items-center justify-center bg-white/60 shadow-[0_20px_48px_rgba(12,45,72,0.14)]">
-          <div
-            className="relative w-[130px] h-[130px] rounded-full overflow-hidden transition-transform duration-75"
-            style={{
-              background: "var(--color-background-first)",
-              transform: `scale(${orbScale})`,
-            }}
-          >
-            {phase === "speaking" && (
-              <div
-                className="absolute rounded-full mix-blend-screen animate-[spin_5s_linear_infinite]"
-                style={{
-                  inset: "-40%",
-                  background: "conic-gradient(from 90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.06), rgba(255,255,255,0.5), rgba(255,255,255,0.08))",
-                }}
-              />
-            )}
-            {phase === "processing" && (
-              <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: "rgba(255,255,255,0.22)" }} />
-            )}
-          </div>
-        </div>
-
-        {/* Status label */}
-        <p className="text-[0.8rem] tracking-[0.2em] uppercase text-[var(--foreground)] opacity-70">
-          {statusLabel}
-        </p>
-
-        {/* Agent reply */}
-        {agentText && (
-          <p className="text-[1.05rem] text-[var(--foreground)] leading-relaxed max-w-[460px]">
-            {agentText}
-          </p>
-        )}
-
-        {/* Error */}
-        {error && (
-          <p className="text-[0.82rem] text-[#b45309] bg-orange-50/80 rounded-xl px-4 py-2">
-            {error}
-          </p>
-        )}
-
-        {/* Mic button */}
-        <button
-          type="button"
-          aria-label={micOn ? "Mute microphone" : "Unmute microphone"}
-          onClick={toggleMic}
-          className={[
-            "mt-2 w-14 h-14 rounded-full flex items-center justify-center",
-            "transition-all duration-200 shadow-[0_8px_24px_rgba(12,45,72,0.16)]",
-            "hover:scale-105 active:scale-95",
-            micOn
-              ? "bg-[var(--color-background-first)] text-white"
-              : "bg-white/80 text-[rgba(12,45,72,0.35)] border border-[rgba(12,45,72,0.12)]",
-          ].join(" ")}
+      {/* ── view toggle ── */}
+      <div className="w-full max-w-[680px] flex justify-center pt-4 px-4 pb-2 flex-shrink-0">
+        <div
+          className="flex rounded-full p-0.5 gap-0.5"
+          style={{ background: "rgba(12,45,72,0.08)", border: "1px solid rgba(12,45,72,0.1)" }}
         >
-          {micOn ? <BsMicFill size={22} /> : <BsMicMuteFill size={22} />}
-        </button>
-
-        {/* Text fallback when no speech API */}
-        {!hasSpeechAPI && (
-          <form className="flex gap-2 w-full justify-center mt-2" onSubmit={handleManualSubmit}>
-            <input
-              type="text"
-              name="voiceText"
-              placeholder="Type your response..."
-              className="flex-1 max-w-[340px] rounded-full border border-[rgba(12,45,72,0.22)] px-4 py-2 text-[0.95rem] bg-white"
-            />
+          {(["voice", "chat"] as const).map((mode) => (
             <button
-              type="submit"
-              className="border border-[rgba(12,45,72,0.18)] bg-white text-[var(--foreground)] px-5 py-2 rounded-full text-[0.75rem] uppercase tracking-[0.12em] transition hover:-translate-y-0.5"
+              key={mode}
+              type="button"
+              onClick={() => {
+                viewModeRef.current = mode;
+                setViewMode(mode);
+                if (mode === "chat") {
+                  if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
+                  accTextRef.current = "";
+                  try { recognitionRef.current?.abort(); } catch { /* ignore */ }
+                  setPhaseSync("idle");
+                } else {
+                  setTimeout(() => startListeningRef.current(), 150);
+                }
+              }}
+              className="px-4 py-1.5 rounded-full text-[0.72rem] uppercase tracking-[0.14em] transition-all duration-200"
+              style={
+                viewMode === mode
+                  ? { background: "var(--color-background-third)", color: "#fff" }
+                  : { color: "rgba(12,45,72,0.5)" }
+              }
             >
-              Send
+              {mode === "voice" ? "🎙 Voice" : "💬 Chat"}
             </button>
-          </form>
-        )}
+          ))}
+        </div>
       </div>
 
-      {/* ── bottom: collapsible transcript ── */}
-      {transcript.length > 0 && (
-        <div className="w-full max-w-[560px] mt-6">
-          <button
-            type="button"
-            onClick={() => setShowTranscript(v => !v)}
-            className="w-full flex items-center justify-center gap-2 text-[0.72rem] uppercase tracking-[0.18em] text-[rgba(12,45,72,0.45)] hover:text-[rgba(12,45,72,0.7)] transition-colors"
-          >
-            <span>{showTranscript ? "Hide" : "Show"} transcript</span>
-            <span className="text-[0.65rem]">{showTranscript ? "▲" : "▼"}</span>
-          </button>
+      {/* ── chat view ── */}
+      {viewMode === "chat" && (
+        <div className="flex-1 w-full flex flex-col overflow-hidden">
+          <ChatView lastTripDestination={lastTripDest} />
+        </div>
+      )}
 
-          {showTranscript && (
-            <div className="mt-2 rounded-2xl border border-white/50 bg-white/65 p-4 text-left text-[0.75rem] text-slate-700 max-h-[220px] overflow-y-auto">
-              <div className="space-y-1.5">
-                {transcript.map((e, i) => (
-                  <div key={i} className={e.role === "agent" ? "text-slate-800" : "text-slate-500"}>
-                    <span className="font-semibold">{e.role === "agent" ? "Agent" : "You"}:</span>{" "}{e.text}
-                  </div>
-                ))}
+      {/* ── voice view ── */}
+      {viewMode === "voice" && (
+        <div className="flex-1 w-full flex flex-col items-center justify-between py-6 px-6 overflow-hidden">
+
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center max-w-[520px] w-full">
+
+            {/* Orb */}
+            <div className="w-[200px] h-[200px] rounded-full flex items-center justify-center bg-white/60 shadow-[0_20px_48px_rgba(12,45,72,0.14)]">
+              <div
+                className="relative w-[130px] h-[130px] rounded-full overflow-hidden transition-transform duration-75"
+                style={{
+                  background: "var(--color-background-first)",
+                  transform: `scale(${orbScale})`,
+                }}
+              >
+                {phase === "speaking" && (
+                  <div
+                    className="absolute rounded-full mix-blend-screen animate-[spin_5s_linear_infinite]"
+                    style={{
+                      inset: "-40%",
+                      background: "conic-gradient(from 90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.06), rgba(255,255,255,0.5), rgba(255,255,255,0.08))",
+                    }}
+                  />
+                )}
+                {phase === "processing" && (
+                  <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: "rgba(255,255,255,0.22)" }} />
+                )}
               </div>
+            </div>
+
+            {/* Status label */}
+            <p className="text-[0.8rem] tracking-[0.2em] uppercase text-[var(--foreground)] opacity-70">
+              {statusLabel}
+            </p>
+
+            {/* Agent reply */}
+            {agentText && (
+              <p className="text-[1.05rem] text-[var(--foreground)] leading-relaxed max-w-[460px]">
+                {agentText}
+              </p>
+            )}
+
+            {/* Error */}
+            {error && (
+              <p className="text-[0.82rem] text-[#b45309] bg-orange-50/80 rounded-xl px-4 py-2">
+                {error}
+              </p>
+            )}
+
+            {/* Mic button */}
+            <button
+              type="button"
+              aria-label={micOn ? "Mute microphone" : "Unmute microphone"}
+              onClick={toggleMic}
+              className={[
+                "mt-2 w-14 h-14 rounded-full flex items-center justify-center",
+                "transition-all duration-200 shadow-[0_8px_24px_rgba(12,45,72,0.16)]",
+                "hover:scale-105 active:scale-95",
+                micOn
+                  ? "bg-[var(--color-background-first)] text-white"
+                  : "bg-white/80 text-[rgba(12,45,72,0.35)] border border-[rgba(12,45,72,0.12)]",
+              ].join(" ")}
+            >
+              {micOn ? <BsMicFill size={22} /> : <BsMicMuteFill size={22} />}
+            </button>
+
+            {/* Text fallback when no speech API */}
+            {!hasSpeechAPI && (
+              <form className="flex gap-2 w-full justify-center mt-2" onSubmit={handleManualSubmit}>
+                <input
+                  type="text"
+                  name="voiceText"
+                  placeholder="Type your response..."
+                  className="flex-1 max-w-[340px] rounded-full border border-[rgba(12,45,72,0.22)] px-4 py-2 text-[0.95rem] bg-white"
+                />
+                <button
+                  type="submit"
+                  className="border border-[rgba(12,45,72,0.18)] bg-white text-[var(--foreground)] px-5 py-2 rounded-full text-[0.75rem] uppercase tracking-[0.12em] transition hover:-translate-y-0.5"
+                >
+                  Send
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* ── bottom: collapsible transcript ── */}
+          {transcript.length > 0 && (
+            <div className="w-full max-w-[560px] mt-6 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTranscript(v => !v)}
+                className="w-full flex items-center justify-center gap-2 text-[0.72rem] uppercase tracking-[0.18em] text-[rgba(12,45,72,0.45)] hover:text-[rgba(12,45,72,0.7)] transition-colors"
+              >
+                <span>{showTranscript ? "Hide" : "Show"} transcript</span>
+                <span className="text-[0.65rem]">{showTranscript ? "▲" : "▼"}</span>
+              </button>
+
+              {showTranscript && (
+                <div className="mt-2 rounded-2xl border border-white/50 bg-white/65 p-4 text-left text-[0.75rem] text-slate-700 max-h-[220px] overflow-y-auto">
+                  <div className="space-y-1.5">
+                    {transcript.map((e, i) => (
+                      <div key={i} className={e.role === "agent" ? "text-slate-800" : "text-slate-500"}>
+                        <span className="font-semibold">{e.role === "agent" ? "Agent" : "You"}:</span>{" "}{e.text}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
