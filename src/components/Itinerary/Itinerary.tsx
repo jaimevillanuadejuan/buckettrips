@@ -15,12 +15,17 @@ interface ItineraryProps {
   tripId?: string;
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
+function formatCurrency(value: number, currencyCode: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    // Fallback if currencyCode is unrecognized
+    return `${value.toLocaleString("en-US")}`;
+  }
 }
 
 function getOrdinalSuffix(day: number): string {
@@ -238,8 +243,9 @@ export default function Itinerary({
             Budget Snapshot
           </p>
           <p className="text-lg font-semibold mt-1" style={{ color: "var(--color-background-third)" }}>
-            {formatCurrency(itinerary.overallBudgetEstimateEur.low)} -{" "}
-            {formatCurrency(itinerary.overallBudgetEstimateEur.high)}
+            {formatCurrency(itinerary.overallBudgetEstimateEur.low, itinerary.tripOverview.currencyCode)} –{" "}
+            {formatCurrency(itinerary.overallBudgetEstimateEur.high, itinerary.tripOverview.currencyCode)}{" "}
+            <span className="text-sm font-normal opacity-60">{itinerary.tripOverview.currencyCode}</span>
           </p>
           {itinerary.overallBudgetEstimateEur.notes.length > 0 && (
             <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--foreground)", opacity: 0.7 }}>
@@ -291,8 +297,8 @@ export default function Itinerary({
                   <p className="text-sm tablet:col-span-2" style={{ color: "var(--foreground)", opacity: 0.75 }}>
                     Estimated daily budget:{" "}
                     <span className="font-semibold" style={{ color: "var(--color-background-third)" }}>
-                      {formatCurrency(day.estimatedBudgetEur.low)} -{" "}
-                      {formatCurrency(day.estimatedBudgetEur.high)}
+                      {formatCurrency(day.estimatedBudgetEur.low, itinerary.tripOverview.currencyCode)} –{" "}
+                      {formatCurrency(day.estimatedBudgetEur.high, itinerary.tripOverview.currencyCode)}
                     </span>
                   </p>
                 </div>

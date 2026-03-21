@@ -339,7 +339,19 @@ export default function VoiceTripBuilder() {
       const updStart = updates?.travel_dates?.exact_start ?? exactStartRef.current ?? exactStartDate;
       const updEnd   = updates?.travel_dates?.exact_end   ?? exactEndDate;
 
-      if (nextStep === "confirm" && updStart && updEnd) {
+      // Only redirect to loading when the LLM explicitly set confirm step AND
+      // both exact dates are present AND the user utterance is an explicit go-ahead.
+      // This prevents premature redirects from ambiguous phrases like "make the calculations".
+      const EXPLICIT_CONFIRM_PHRASES = [
+        "let's go", "lets go", "plan it", "go ahead", "yes go", "build it",
+        "build the itinerary", "generate", "create it", "do it", "yes please",
+        "yes, go", "confirm", "start planning", "make the trip",
+      ];
+      const isExplicitConfirm = EXPLICIT_CONFIRM_PHRASES.some((phrase) =>
+        text.toLowerCase().includes(phrase)
+      );
+
+      if (nextStep === "confirm" && updStart && updEnd && isExplicitConfirm) {
         exactStartRef.current = updStart;
         setExactStartDate(updStart);
         setExactEndDate(updEnd);
