@@ -76,6 +76,7 @@ export default function MyTripDetailPage() {
           itinerary={normalizedItinerary}
           isSubmitting={false}
           readOnly
+          tripId={tripId}
           onSubmitFollowUpAnswers={() => undefined}
         />
       )}
