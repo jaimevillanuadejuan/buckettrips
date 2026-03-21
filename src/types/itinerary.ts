@@ -7,6 +7,8 @@ export interface TripOverview {
   destination: string;
   travelWindow: string;
   planningStyle: string;
+  currencyCode: string;
+  currencySymbol: string;
   keyAssumptions: string[];
 }
 
@@ -87,6 +89,24 @@ function normalizeBudgetRange(value: unknown): BudgetRange {
   };
 }
 
+function findBudgetField(day: Record<string, unknown>): unknown {
+  if (isObject(day.estimatedBudget)) return day.estimatedBudget;
+  if (isObject(day.estimatedBudgetEur)) return day.estimatedBudgetEur;
+  const entry = Object.entries(day).find(([k]) =>
+    k.toLowerCase().startsWith("estimatedbudget")
+  );
+  return entry ? entry[1] : undefined;
+}
+
+function findOverallBudgetField(value: Record<string, unknown>): unknown {
+  if (isObject(value.overallBudgetEstimate)) return value.overallBudgetEstimate;
+  if (isObject(value.overallBudgetEstimateEur)) return value.overallBudgetEstimateEur;
+  const entry = Object.entries(value).find(([k]) =>
+    k.toLowerCase().startsWith("overallbudgetestimate")
+  );
+  return entry ? entry[1] : undefined;
+}
+
 function normalizeDay(day: unknown, index: number): ItineraryDay | null {
   if (!isObject(day)) {
     return null;
@@ -99,7 +119,7 @@ function normalizeDay(day: unknown, index: number): ItineraryDay | null {
     morning: toStringArray(day.morning),
     afternoon: toStringArray(day.afternoon),
     evening: toStringArray(day.evening),
-    estimatedBudgetEur: normalizeBudgetRange(day.estimatedBudgetEur),
+    estimatedBudgetEur: normalizeBudgetRange(findBudgetField(day)),
     budgetTips: toStringArray(day.budgetTips),
     logisticsNotes: toStringArray(day.logisticsNotes),
     reservationAlerts: toStringArray(day.reservationAlerts),
@@ -157,9 +177,8 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
   const dailyRaw = Array.isArray(value.dailyItinerary)
     ? value.dailyItinerary
     : [];
-  const overallBudget = isObject(value.overallBudgetEstimateEur)
-    ? value.overallBudgetEstimateEur
-    : {};
+  const overallBudgetRaw = findOverallBudgetField(value);
+  const overallBudget = isObject(overallBudgetRaw) ? overallBudgetRaw : {};
 
   const normalized: TripItinerary = {
     tripOverview: {
@@ -175,6 +194,14 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
         overview && typeof overview.planningStyle === "string"
           ? overview.planningStyle
           : "balanced, budget-aware planning",
+      currencyCode:
+        overview && typeof overview.currencyCode === "string" && overview.currencyCode.trim()
+          ? overview.currencyCode.trim().toUpperCase()
+          : "EUR",
+      currencySymbol:
+        overview && typeof overview.currencySymbol === "string" && overview.currencySymbol.trim()
+          ? overview.currencySymbol.trim()
+          : "€",
       keyAssumptions: toStringArray(overview?.keyAssumptions),
     },
     dailyItinerary: dailyRaw
@@ -201,7 +228,7 @@ export function isTripItinerary(value: unknown): value is TripItinerary {
 
   const overview = value.tripOverview;
   const days = value.dailyItinerary;
-  const overallBudget = value.overallBudgetEstimateEur;
+  const overallBudget = findOverallBudgetField(value);
   const followUps = value.followUpQuestions;
 
   if (
@@ -232,9 +259,9 @@ export function isTripItinerary(value: unknown): value is TripItinerary {
 
   return (
     days.every((day) => {
-      if (!isObject(day) || !isObject(day.estimatedBudgetEur)) {
-        return false;
-      }
+      if (!isObject(day)) return false;
+      const budget = findBudgetField(day);
+      if (!isObject(budget)) return false;
 
       return (
         typeof day.day === "number" &&
@@ -243,8 +270,8 @@ export function isTripItinerary(value: unknown): value is TripItinerary {
         isStringArray(day.morning) &&
         isStringArray(day.afternoon) &&
         isStringArray(day.evening) &&
-        typeof day.estimatedBudgetEur.low === "number" &&
-        typeof day.estimatedBudgetEur.high === "number" &&
+        typeof budget.low === "number" &&
+        typeof budget.high === "number" &&
         isStringArray(day.budgetTips) &&
         isStringArray(day.logisticsNotes) &&
         isStringArray(day.reservationAlerts)
