@@ -12,6 +12,7 @@ interface ItineraryProps {
   onSubmitFollowUpAnswers: (answers: string[]) => Promise<void> | void;
   onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
   readOnly?: boolean;
+  tripId?: string;
 }
 
 function formatCurrency(value: number): string {
@@ -128,6 +129,7 @@ export default function Itinerary({
   onSubmitFollowUpAnswers,
   onSaveTripClick,
   readOnly = false,
+  tripId,
 }: ItineraryProps) {
   const [itinerary, setItinerary] = useState<TripItinerary>(initialItinerary);
   const [answers, setAnswers] = useState<string[]>(
@@ -301,7 +303,7 @@ export default function Itinerary({
       </section>
 
       {readOnly && (
-        <TripRefinementChat itinerary={itinerary} onItineraryUpdate={setItinerary} />
+        <TripRefinementChat itinerary={itinerary} onItineraryUpdate={setItinerary} tripId={tripId} />
       )}
 
       {!readOnly && (

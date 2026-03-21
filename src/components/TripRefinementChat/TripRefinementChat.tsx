@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useSession } from "next-auth/react";
 import type { TripItinerary } from "@/types/itinerary";
+import { apiFetch } from "@/lib/api";
 
 const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
@@ -14,9 +16,14 @@ interface ChatMessage {
 interface TripRefinementChatProps {
   itinerary: TripItinerary;
   onItineraryUpdate: (updated: TripItinerary) => void;
+  /** When provided, the updated itinerary is persisted to the DB after each refine */
+  tripId?: string;
 }
 
-export default function TripRefinementChat({ itinerary, onItineraryUpdate }: TripRefinementChatProps) {
+export default function TripRefinementChat({ itinerary, onItineraryUpdate, tripId }: TripRefinementChatProps) {
+  const { data: session } = useSession();
+  const profileId = session?.user?.profileId;
+
   const [messages, setMessages]         = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [introSent, setIntroSent]       = useState(false);
@@ -32,7 +39,6 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate }: Tri
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isProcessing]);
 
-  // fetch enthusiastic intro on mount
   useEffect(() => {
     if (introSent) return;
     setIntroSent(true);
@@ -91,6 +97,20 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate }: Tri
 
       const updated = data.itinerary as TripItinerary;
       onItineraryUpdate(updated);
+      itineraryRef.current = updated;
+
+      // Persist to DB if we have a tripId (saved trip context)
+      if (tripId && profileId) {
+        try {
+          await apiFetch(`/trips/${tripId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ itinerary: updated }),
+          }, profileId);
+        } catch {
+          // Non-fatal — UI already updated, just log silently
+          console.warn("[refine] Failed to persist itinerary update to DB");
+        }
+      }
 
       const replyText = data.reply ?? "Done! Your itinerary has been updated. Anything else you'd like to adjust?";
       const agentMsg: ChatMessage = { role: "agent", text: replyText };
@@ -103,7 +123,7 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate }: Tri
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, onItineraryUpdate]);
+  }, [isProcessing, onItineraryUpdate, tripId, profileId]);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
