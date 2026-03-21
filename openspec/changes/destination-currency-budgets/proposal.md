@@ -29,7 +29,20 @@ All budget figures in generated itineraries are hardcoded in EUR, and the fronte
 - The save/load flow — no migration needed
 - The `budget.tier` concept in `TripContext` — that stays as a qualitative tier, currency is only relevant at display/generation time
 
+## Implementation Notes
+
+### LLM field-renaming bug (fixed)
+The LLM was renaming `estimatedBudgetEur` to match the destination currency (e.g. `estimatedBudgetPen` for Peru, `estimatedBudgetJpy` for Japan). This caused both the backend validator and frontend normalizer to find empty budget objects, resulting in a 400 error and raw JSON rendering instead of the itinerary UI.
+
+Fix: the JSON schema template in `confirmTrip` now uses currency-agnostic names (`estimatedBudget`, `overallBudgetEstimate`). Both validators use a flexible key scan (`findBudgetField`, `findOverallBudgetField`) that accepts any `estimatedBudget*` / `overallBudgetEstimate*` key — so old saved trips with the `Eur` suffix still work.
+
+### Premature confirm bug (fixed)
+The conversation agent was jumping to `nextStep: "confirm"` on ambiguous phrases like "make the calculations" or "sounds good", triggering an immediate redirect to the loading page before all required info was collected.
+
+Fix: the `continueConversation` system prompt now has an explicit 5-item checklist (destination, exact_start, exact_end, companions, budget) that must all be satisfied before confirm is allowed. A DATE CALCULATION RULE instructs the LLM to compute YYYY-MM-DD dates from natural language itself and confirm with the user rather than jumping ahead.
+
 ## Correctness Properties
 - For any destination, `currencyCode` in the output must be a valid ISO 4217 code matching that country
 - If the user stated a numeric budget in conversation, the generated `overallBudget.high` must not exceed that amount (converted to destination currency)
 - Existing saved trips without `currencyCode` must still render correctly (fallback to EUR)
+- `nextStep: "confirm"` must never be set unless all 5 checklist items are present in `tripContextUpdates` or existing `tripContext`
