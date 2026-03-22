@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "../components/Header/Header";
 import SessionProvider from "../components/SessionProvider";
+import BackendWakeUp from "../components/BackendWakeUp/BackendWakeUp";
 
 export const metadata: Metadata = {
   title: "BucketTrips",
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SessionProvider>
+          <BackendWakeUp />
           <Header />
           <main>{children}</main>
         </SessionProvider>
