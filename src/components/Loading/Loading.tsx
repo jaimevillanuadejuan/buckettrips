@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import FlightResults from "@/components/FlightResults/FlightResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SaveTripResult } from "@/types/saved-trip";
@@ -15,6 +16,10 @@ interface LoadingProps {
   onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
   onRetry?: () => void;
   readOnly?: boolean;
+  tripStartDate?: string;
+  tripEndDate?: string;
+  tripOriginCity?: string | null;
+  tripFlightBudget?: { amount: number; currency: string } | null;
 }
 
 export default function Loading({
@@ -26,6 +31,10 @@ export default function Loading({
   onSaveTripClick,
   onRetry,
   readOnly = false,
+  tripStartDate,
+  tripEndDate,
+  tripOriginCity,
+  tripFlightBudget,
 }: LoadingProps) {
   const responseText =
     typeof response === "string"
@@ -87,13 +96,24 @@ export default function Loading({
       )}
 
       {!error && !isLoading && itinerary && (
-        <Itinerary
-          itinerary={itinerary}
-          isSubmitting={isLoading}
-          onSubmitFollowUpAnswers={onSubmitFollowUpAnswers}
-          onSaveTripClick={onSaveTripClick}
-          readOnly={readOnly}
-        />
+        <>
+          {tripStartDate && tripEndDate && location && (
+            <FlightResults
+              destination={location}
+              startDate={tripStartDate}
+              endDate={tripEndDate}
+              originCity={tripOriginCity}
+              flightBudget={tripFlightBudget}
+            />
+          )}
+          <Itinerary
+            itinerary={itinerary}
+            isSubmitting={isLoading}
+            onSubmitFollowUpAnswers={onSubmitFollowUpAnswers}
+            onSaveTripClick={onSaveTripClick}
+            readOnly={readOnly}
+          />
+        </>
       )}
 
       {!error && !isLoading && !itinerary && responseText && (

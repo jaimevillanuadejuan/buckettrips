@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import FlightResults from "@/components/FlightResults/FlightResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SavedTripDetail } from "@/types/saved-trip";
@@ -72,13 +73,24 @@ export default function MyTripDetailPage() {
       {error && <p className="text-red-400 mt-6 font-semibold">{error}</p>}
 
       {!isLoading && trip && normalizedItinerary && (
-        <Itinerary
-          itinerary={normalizedItinerary}
-          isSubmitting={false}
-          readOnly
-          tripId={tripId}
-          onSubmitFollowUpAnswers={() => undefined}
-        />
+        <>
+          {trip.startDate && trip.endDate && trip.location && (
+            <FlightResults
+              destination={trip.location}
+              startDate={trip.startDate}
+              endDate={trip.endDate}
+              originCity={trip.originCity}
+              flightBudget={trip.flightBudget}
+            />
+          )}
+          <Itinerary
+            itinerary={normalizedItinerary}
+            isSubmitting={false}
+            readOnly
+            tripId={tripId}
+            onSubmitFollowUpAnswers={() => undefined}
+          />
+        </>
       )}
 
       {!isLoading && trip && !normalizedItinerary && (
