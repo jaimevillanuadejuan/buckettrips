@@ -24,6 +24,9 @@ export default function MyTripsPage() {
   );
 
   useEffect(() => {
+    if (!profileId) return;
+    console.log('[my-trips] profileId:', profileId);
+
     const loadTrips = async () => {
       try {
         setIsLoading(true);
@@ -44,7 +47,7 @@ export default function MyTripsPage() {
     };
 
     void loadTrips();
-  }, []);
+  }, [profileId]);
 
   const handleDelete = async (tripId: string) => {
     try {

@@ -84,6 +84,25 @@ export default function VoiceTripBuilder() {
   const [exactEndDate,          setExactEndDate]          = useState("");
   const exactStartRef = useRef("");
 
+  // ── flight context (optional) ─────────────────────────────────────────────
+  const [originCity,          setOriginCity]          = useState<string | null>(null);
+  const [flightBudget,        setFlightBudget]        = useState<{ amount: number; currency: string } | null>(null);
+  const [airlinePreferences,  setAirlinePreferences]  = useState<{ preferred: string[]; avoided: string[] } | null>(null);
+  const [detectedOriginCity,  setDetectedOriginCity]  = useState<string | null>(null);
+
+  // Detect user's city via IP geolocation on mount
+  useEffect(() => {
+    const detect = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (!res.ok) return;
+        const data = (await res.json()) as { city?: string };
+        if (data.city) setDetectedOriginCity(data.city);
+      } catch { /* silently ignore */ }
+    };
+    void detect();
+  }, []);
+
   // ── UI ────────────────────────────────────────────────────────────────────
   const [phase,          setPhase]          = useState<Phase>("idle");
   const [micOn,          setMicOn]          = useState(true);
@@ -172,6 +191,9 @@ export default function VoiceTripBuilder() {
       accommodation: { style: label, tier: budgetTier },
       contextual_answers: contextualAnswers,
       confirmed,
+      flightBudget,
+      airlinePreferences,
+      originCity,
     };
   }, [
     destinationRaw, resolvedRegion, destinationConfidence,
@@ -179,6 +201,7 @@ export default function VoiceTripBuilder() {
     exactStartDate, exactEndDate, companions, companionCount,
     budgetTier, activityLevel, spontaneity,
     interests, exclusions, accommodationStyle, contextualAnswers,
+    flightBudget, airlinePreferences, originCity,
   ]);
 
   // ── apply backend updates ─────────────────────────────────────────────────
@@ -219,6 +242,9 @@ export default function VoiceTripBuilder() {
       if (typeof u.accommodation.tier  === "string") setBudgetTier(u.accommodation.tier);
     }
     if (u.contextual_answers) setContextualAnswers(prev => ({ ...prev, ...u.contextual_answers }));
+    if (typeof u.originCity === "string" && u.originCity.trim()) setOriginCity(u.originCity.trim());
+    if (u.flightBudget && typeof u.flightBudget.amount === "number") setFlightBudget(u.flightBudget);
+    if (u.airlinePreferences) setAirlinePreferences(u.airlinePreferences);
   }, []);
 
   const historyRef = useRef<Array<{ role: "agent" | "user"; text: string }>>([]);
@@ -317,6 +343,7 @@ export default function VoiceTripBuilder() {
           currentStep,
           lastUserUtterance: text,
           conversationHistory: historyRef.current,
+          detectedOriginCity: detectedOriginCity ?? undefined,
         }),
       });
 
@@ -379,7 +406,7 @@ export default function VoiceTripBuilder() {
     }
   }, [
     currentStep, exactStartDate, exactEndDate,
-    buildContext, applyUpdates, speak, addLine, setPhaseSync, router,
+    buildContext, applyUpdates, speak, addLine, setPhaseSync, router, detectedOriginCity,
   ]);
 
   // ── start listening ───────────────────────────────────────────────────────

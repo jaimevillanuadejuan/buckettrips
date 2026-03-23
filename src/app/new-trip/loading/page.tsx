@@ -320,6 +320,10 @@ export default function TripLoadingPage() {
       onSubmitFollowUpAnswers={handleSubmitFollowUpAnswers}
       onSaveTripClick={handleSaveTripClick}
       onRetry={handleRetry}
+      tripStartDate={tripContextRef.current?.travel_dates.exact_start ?? startDate}
+      tripEndDate={tripContextRef.current?.travel_dates.exact_end ?? endDate}
+      tripOriginCity={tripContextRef.current?.originCity}
+      tripFlightBudget={tripContextRef.current?.flightBudget}
     />
   );
 }

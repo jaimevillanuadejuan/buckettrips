@@ -33,6 +33,9 @@
   };
   contextual_answers: Record<string, string>;
   confirmed: boolean;
+  flightBudget: { amount: number; currency: string } | null;
+  airlinePreferences: { preferred: string[]; avoided: string[] } | null;
+  originCity: string | null;
 }
 
 export interface ContextualQuestion {
