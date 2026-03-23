@@ -25,7 +25,6 @@ export default function MyTripsPage() {
 
   useEffect(() => {
     if (!profileId) return;
-    console.log('[my-trips] profileId:', profileId);
 
     const loadTrips = async () => {
       try {
