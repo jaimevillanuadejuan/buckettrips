@@ -335,7 +335,7 @@ export default function VoiceTripBuilder() {
     setPhaseSync("processing");
 
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/trips/conversation`, {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/trips/conversation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -7,7 +7,7 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY ?? "";
 // Flights are not user-specific — no auth required
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const backendUrl = new URL(`${BACKEND_BASE_URL}/flights/search`);
+  const backendUrl = new URL(`${BACKEND_BASE_URL}/api/flights/search`);
   searchParams.forEach((value, key) => backendUrl.searchParams.set(key, value));
 
   const res = await fetch(backendUrl.toString(), {

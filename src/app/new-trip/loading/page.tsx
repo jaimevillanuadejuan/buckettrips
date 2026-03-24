@@ -84,7 +84,7 @@ export default function TripLoadingPage() {
           activeContext?.travel_dates.exact_start &&
           activeContext?.travel_dates.exact_end
         ) {
-          const confirmRes = await fetch(`${BACKEND_BASE_URL}/trips/confirm`, {
+          const confirmRes = await fetch(`${BACKEND_BASE_URL}/api/trips/confirm`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal,

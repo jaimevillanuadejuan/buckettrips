@@ -18,5 +18,5 @@ export async function apiFetch(
     headers['X-Api-Key'] = INTERNAL_API_KEY;
   }
 
-  return fetch(`${BACKEND_BASE_URL}${path}`, { ...options, headers });
+  return fetch(`${BACKEND_BASE_URL}/api${path}`, { ...options, headers });
 }

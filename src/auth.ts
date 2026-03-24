@@ -20,7 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (!account) return false;
 
       try {
-        const res = await fetch(`${BACKEND_URL}/profile/upsert`, {
+        const res = await fetch(`${BACKEND_URL}/api/profile/upsert`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

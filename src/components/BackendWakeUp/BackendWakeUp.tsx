@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export default function BackendWakeUp() {
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/health`, {
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/health`, {
       method: "GET",
       cache: "no-store",
     }).catch(() => {

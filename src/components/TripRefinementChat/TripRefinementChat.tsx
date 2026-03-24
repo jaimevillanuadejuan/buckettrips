@@ -46,7 +46,7 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate, tripI
     const fetchIntro = async () => {
       setIsProcessing(true);
       try {
-        const res = await fetch(`${BACKEND_BASE_URL}/trips/chat`, {
+        const res = await fetch(`${BACKEND_BASE_URL}/api/trips/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -82,7 +82,7 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate, tripI
     setIsProcessing(true);
 
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/trips/refine`, {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/trips/refine`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
