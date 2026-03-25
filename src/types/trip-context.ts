@@ -34,6 +34,8 @@
   contextual_answers: Record<string, string>;
   confirmed: boolean;
   flightBudget: { amount: number; currency: string } | null;
+  accommodationBudget: { amount: number; currency: string } | null;
+  accommodationType: string | null;
   airlinePreferences: { preferred: string[]; avoided: string[] } | null;
   originCity: string | null;
 }

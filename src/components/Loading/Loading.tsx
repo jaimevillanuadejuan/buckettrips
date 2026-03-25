@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import FlightResults from "@/components/FlightResults/FlightResults";
+import HotelResults from "@/components/HotelResults/HotelResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SaveTripResult } from "@/types/saved-trip";
@@ -20,6 +21,7 @@ interface LoadingProps {
   tripEndDate?: string;
   tripOriginCity?: string | null;
   tripFlightBudget?: { amount: number; currency: string } | null;
+  tripAccommodationBudget?: { amount: number; currency: string } | null;
 }
 
 export default function Loading({
@@ -35,6 +37,7 @@ export default function Loading({
   tripEndDate,
   tripOriginCity,
   tripFlightBudget,
+  tripAccommodationBudget,
 }: LoadingProps) {
   const responseText =
     typeof response === "string"
@@ -104,6 +107,14 @@ export default function Loading({
               endDate={tripEndDate}
               originCity={tripOriginCity}
               flightBudget={tripFlightBudget}
+            />
+          )}
+          {tripStartDate && tripEndDate && location && (
+            <HotelResults
+              destination={location}
+              startDate={tripStartDate}
+              endDate={tripEndDate}
+              accommodationBudget={tripAccommodationBudget}
             />
           )}
           <Itinerary

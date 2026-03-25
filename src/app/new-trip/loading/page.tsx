@@ -22,7 +22,7 @@ interface ApiErrorResponse {
 
 const MAX_FOLLOW_UP_REFINEMENTS = 2;
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080/api";
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
 
 function getApiErrorMessage(
   payload: ApiErrorResponse,
@@ -55,6 +55,27 @@ export default function TripLoadingPage() {
 
   // ✅ Ref instead of state — changes don't trigger re-renders or dependency cascades
   const tripContextRef = useRef<TripContext | null>(null);
+  const currencySavedRef = useRef(false);
+
+  // Detect and save preferred currency client-side on mount (browser has real IP)
+  useEffect(() => {
+    if (!profileId || currencySavedRef.current) return;
+    const saveCurrency = async () => {
+      try {
+        const geoRes = await fetch("https://ipapi.co/json/");
+        if (!geoRes.ok) return;
+        const geo = (await geoRes.json()) as { currency?: string };
+        if (!geo.currency) return;
+        currencySavedRef.current = true;
+        await fetch("/api/profile/currency", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ currency: geo.currency }),
+        });
+      } catch { /* silently ignore */ }
+    };
+    void saveCurrency();
+  }, [profileId]);
 
   const [locationLabel, setLocationLabel] = useState("your destination");
   const [response, setResponse] = useState<unknown>(null);
@@ -275,6 +296,10 @@ export default function TripLoadingPage() {
             provider: sourceProvider,
             model: sourceModel,
             itinerary: normalizedItinerary,
+            originCity: tripContextRef.current?.originCity ?? null,
+            flightBudget: tripContextRef.current?.flightBudget ?? null,
+            accommodationBudget: tripContextRef.current?.accommodationBudget ?? null,
+            accommodationType: tripContextRef.current?.accommodationType ?? null,
           }),
         }, profileId);
 
@@ -324,6 +349,7 @@ export default function TripLoadingPage() {
       tripEndDate={tripContextRef.current?.travel_dates.exact_end ?? endDate}
       tripOriginCity={tripContextRef.current?.originCity}
       tripFlightBudget={tripContextRef.current?.flightBudget}
+      tripAccommodationBudget={tripContextRef.current?.accommodationBudget}
     />
   );
 }

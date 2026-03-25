@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import FlightResults from "@/components/FlightResults/FlightResults";
+import HotelResults from "@/components/HotelResults/HotelResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SavedTripDetail } from "@/types/saved-trip";
@@ -81,6 +82,14 @@ export default function MyTripDetailPage() {
               endDate={trip.endDate}
               originCity={trip.originCity}
               flightBudget={trip.flightBudget}
+            />
+          )}
+          {trip.startDate && trip.endDate && trip.location && (
+            <HotelResults
+              destination={trip.location}
+              startDate={trip.startDate}
+              endDate={trip.endDate}
+              accommodationBudget={trip.accommodationBudget}
             />
           )}
           <Itinerary

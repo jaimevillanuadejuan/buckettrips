@@ -1,5 +1,5 @@
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080/api';
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
 
 const INTERNAL_API_KEY = process.env.NEXT_PUBLIC_INTERNAL_API_KEY ?? '';
 

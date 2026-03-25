@@ -115,7 +115,7 @@ export default function FlightResults({
   }, [destination, startDate, endDate, resolvedOrigin, flightBudget, originCurrency]);
 
   return (
-    <section className="mt-6">
+    <section className="mt-6 w-full text-left">
       <h2
         className="text-lg font-semibold mb-3"
         style={{ color: "var(--foreground)" }}

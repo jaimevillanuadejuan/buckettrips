@@ -13,6 +13,8 @@ export interface SavedTripDetail extends SavedTripSummary {
   itinerary: unknown;
   originCity?: string | null;
   flightBudget?: { amount: number; currency: string } | null;
+  accommodationBudget?: { amount: number; currency: string } | null;
+  accommodationType?: string | null;
 }
 
 export interface SaveTripResult {

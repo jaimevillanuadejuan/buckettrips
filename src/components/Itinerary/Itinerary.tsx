@@ -28,6 +28,63 @@ function formatCurrency(value: number, currencyCode: string): string {
   }
 }
 
+function useUserCurrency(tripCurrencyCode: string) {
+  const [userCurrency, setUserCurrency] = useState<string | null>(null);
+  const [rate, setRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    const detect = async () => {
+      try {
+        // Try profile first, fall back to geo
+        let detected: string | null = null;
+
+        const profileRes = await fetch("/api/profile/me", { cache: "no-store" });
+        if (profileRes.ok) {
+          const d = (await profileRes.json()) as { preferredCurrency?: string | null };
+          detected = d.preferredCurrency?.trim() ?? null;
+        }
+
+        if (!detected) {
+          const geoRes = await fetch("/api/geo", { cache: "no-store" });
+          if (geoRes.ok) {
+            const d = (await geoRes.json()) as { currency?: string | null };
+            detected = d.currency ?? null;
+          }
+        }
+
+        if (!detected || detected === tripCurrencyCode) return;
+        setUserCurrency(detected);
+
+        // Get exchange rate via open.er-api.com (supports all currencies)
+        let r: number | null = null;
+        try {
+          const er = await fetch(`https://open.er-api.com/v6/latest/${tripCurrencyCode}`);
+          if (er.ok) {
+            const ed = (await er.json()) as { rates?: Record<string, number> };
+            r = ed.rates?.[detected] ?? null;
+          }
+        } catch { /* fall through */ }
+
+        // Final fallback: exchangerate.host
+        if (!r) {
+          try {
+            const er2 = await fetch(`https://api.exchangerate.host/latest?base=${tripCurrencyCode}&symbols=${detected}`);
+            if (er2.ok) {
+              const ed2 = (await er2.json()) as { rates?: Record<string, number> };
+              r = ed2.rates?.[detected] ?? null;
+            }
+          } catch { /* fall through */ }
+        }
+
+        if (r) setRate(r);
+      } catch { /* silently ignore */ }
+    };
+    void detect();
+  }, [tripCurrencyCode]);
+
+  return { userCurrency, rate };
+}
+
 function getOrdinalSuffix(day: number): string {
   const remainder10 = day % 10;
   const remainder100 = day % 100;
@@ -140,6 +197,7 @@ export default function Itinerary({
   const [answers, setAnswers] = useState<string[]>(
     initialItinerary.followUpQuestions.map(() => "")
   );
+  const { userCurrency, rate } = useUserCurrency(itinerary.tripOverview.currencyCode);
   const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<SaveTripResult | null>(null);
   const [isSavingTrip, setIsSavingTrip] = useState(false);
@@ -243,9 +301,17 @@ export default function Itinerary({
             Budget Snapshot
           </p>
           <p className="text-lg font-semibold mt-1" style={{ color: "var(--color-background-third)" }}>
-            {formatCurrency(itinerary.overallBudgetEstimateEur.low, itinerary.tripOverview.currencyCode)} –{" "}
-            {formatCurrency(itinerary.overallBudgetEstimateEur.high, itinerary.tripOverview.currencyCode)}{" "}
-            <span className="text-sm font-normal opacity-60">{itinerary.tripOverview.currencyCode}</span>
+            <span className="font-normal opacity-80">
+              {formatCurrency(itinerary.overallBudgetEstimateEur.low, itinerary.tripOverview.currencyCode)} –{" "}
+              {formatCurrency(itinerary.overallBudgetEstimateEur.high, itinerary.tripOverview.currencyCode)}{" "}
+              <span className="text-sm opacity-60">{itinerary.tripOverview.currencyCode}</span>
+            </span>
+            {userCurrency && rate && (
+              <span className="ml-2 font-bold" style={{ color: "var(--color-background-third)" }}>
+                ({formatCurrency(Math.round(itinerary.overallBudgetEstimateEur.low * rate), userCurrency)} –{" "}
+                {formatCurrency(Math.round(itinerary.overallBudgetEstimateEur.high * rate), userCurrency)})
+              </span>
+            )}
           </p>
           {itinerary.overallBudgetEstimateEur.notes.length > 0 && (
             <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--foreground)", opacity: 0.7 }}>
@@ -300,6 +366,12 @@ export default function Itinerary({
                       {formatCurrency(day.estimatedBudgetEur.low, itinerary.tripOverview.currencyCode)} –{" "}
                       {formatCurrency(day.estimatedBudgetEur.high, itinerary.tripOverview.currencyCode)}
                     </span>
+                    {userCurrency && rate && (
+                      <span className="ml-1 font-bold" style={{ color: "var(--color-background-third)" }}>
+                        ({formatCurrency(Math.round(day.estimatedBudgetEur.low * rate), userCurrency)} –{" "}
+                        {formatCurrency(Math.round(day.estimatedBudgetEur.high * rate), userCurrency)})
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

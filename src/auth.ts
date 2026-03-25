@@ -20,6 +20,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (!account) return false;
 
       try {
+        // Detect currency from IP server-side during sign-in
+        let preferredCurrency: string | null = null;
+        try {
+          const geoRes = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+          if (geoRes.ok) {
+            const geo = (await geoRes.json()) as { currency?: string };
+            preferredCurrency = geo.currency ?? null;
+          }
+        } catch { /* ignore */ }
+
         const res = await fetch(`${BACKEND_URL}/api/profile/upsert`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -29,6 +39,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: user.email,
             name: user.name,
             avatarUrl: user.image,
+            preferredCurrency,
           }),
         });
 
@@ -38,9 +49,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return false;
         }
 
-        const profile = await res.json() as { id: string };
+        const profile = await res.json() as { id: string; preferredCurrency?: string | null };
         console.log('[auth] profile upserted:', profile.id);
         (user as Record<string, unknown>).profileId = profile.id;
+        (user as Record<string, unknown>).preferredCurrency = profile.preferredCurrency ?? null;
         return true;
       } catch (err) {
         console.error('[auth] signIn callback error:', err);

@@ -263,6 +263,9 @@ export default function VoiceTripBuilder() {
     setAgentText(text);
     setError(null);
     addLine("agent", text);
+    // Clear any pending silence timer so recognition doesn't fire while speaking
+    if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
+    accTextRef.current = "";
     setPhaseSync("speaking");
 
     if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -306,14 +309,14 @@ export default function VoiceTripBuilder() {
       if (synth.speaking) synth.resume();
     }, 250);
 
-    // Safety fallback: if synthesis never fires onend within 15s, recover
+    // Safety fallback: if synthesis never fires onend within 30s, recover
     const synthTimeout = setTimeout(() => {
       if (phaseRef.current === "speaking") {
         synth.cancel();
         setPhaseSync("idle");
         setTimeout(() => startListeningRef.current(), 300);
       }
-    }, 15_000);
+    }, 30_000);
   }, [addLine, setPhaseSync]);
 
   // ── main conversation handler ─────────────────────────────────────────────
@@ -366,27 +369,20 @@ export default function VoiceTripBuilder() {
       const updStart = updates?.travel_dates?.exact_start ?? exactStartRef.current ?? exactStartDate;
       const updEnd   = updates?.travel_dates?.exact_end   ?? exactEndDate;
 
-      // Only redirect to loading when the LLM explicitly set confirm step AND
-      // both exact dates are present AND the user utterance is an explicit go-ahead.
-      // This prevents premature redirects from ambiguous phrases like "make the calculations".
-      const EXPLICIT_CONFIRM_PHRASES = [
-        "let's go", "lets go", "plan it", "go ahead", "yes go", "build it",
-        "build the itinerary", "generate", "create it", "do it", "yes please",
-        "yes, go", "confirm", "start planning", "make the trip",
-      ];
-      const isExplicitConfirm = EXPLICIT_CONFIRM_PHRASES.some((phrase) =>
-        text.toLowerCase().includes(phrase)
-      );
-
-      if (nextStep === "confirm" && updStart && updEnd && isExplicitConfirm) {
+      // Trust the LLM — if it sets nextStep to "confirm" and dates are present, generate the trip
+      if (nextStep === "confirm" && updStart && updEnd) {
         exactStartRef.current = updStart;
         setExactStartDate(updStart);
         setExactEndDate(updEnd);
         const ctx = buildContext(true);
         ctx.travel_dates.exact_start = updStart;
         ctx.travel_dates.exact_end   = updEnd;
-        sessionStorage.setItem("tripContext", JSON.stringify(ctx));
-        router.push("/new-trip/loading");
+        // Speak the reply first, then redirect after speech ends
+        speak(reply);
+        setTimeout(() => {
+          sessionStorage.setItem("tripContext", JSON.stringify(ctx));
+          router.push("/new-trip/loading");
+        }, 2500);
         return;
       }
 
@@ -442,9 +438,19 @@ export default function VoiceTripBuilder() {
     };
 
     rec.onresult = (event: any) => {
-      // ignore results when not in voice mode or already processing/speaking
+      // ignore results when not in voice mode
       if (viewModeRef.current === "chat") return;
-      if (phaseRef.current === "speaking" || phaseRef.current === "processing") return;
+      // If processing, ignore
+      if (phaseRef.current === "processing") return;
+
+      // If agent is speaking and user starts talking — interrupt immediately
+      if (phaseRef.current === "speaking") {
+        window.speechSynthesis?.cancel();
+        if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
+        accTextRef.current = "";
+        setPhaseSync("listening");
+        // Don't return — fall through to capture what they said
+      }
 
       let newFinal = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
