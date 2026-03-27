@@ -89,6 +89,8 @@ export default function VoiceTripBuilder() {
   const [flightBudget,        setFlightBudget]        = useState<{ amount: number; currency: string } | null>(null);
   const [airlinePreferences,  setAirlinePreferences]  = useState<{ preferred: string[]; avoided: string[] } | null>(null);
   const [detectedOriginCity,  setDetectedOriginCity]  = useState<string | null>(null);
+  const [accommodationBudget, setAccommodationBudget] = useState<{ amount: number; currency: string } | null>(null);
+  const [accommodationType,   setAccommodationType]   = useState<string | null>(null);
 
   // Detect user's city via IP geolocation on mount
   useEffect(() => {
@@ -192,6 +194,8 @@ export default function VoiceTripBuilder() {
       contextual_answers: contextualAnswers,
       confirmed,
       flightBudget,
+      accommodationBudget,
+      accommodationType,
       airlinePreferences,
       originCity,
     };
@@ -201,7 +205,7 @@ export default function VoiceTripBuilder() {
     exactStartDate, exactEndDate, companions, companionCount,
     budgetTier, activityLevel, spontaneity,
     interests, exclusions, accommodationStyle, contextualAnswers,
-    flightBudget, airlinePreferences, originCity,
+    flightBudget, accommodationBudget, accommodationType, airlinePreferences, originCity,
   ]);
 
   // ── apply backend updates ─────────────────────────────────────────────────
@@ -244,6 +248,8 @@ export default function VoiceTripBuilder() {
     if (u.contextual_answers) setContextualAnswers(prev => ({ ...prev, ...u.contextual_answers }));
     if (typeof u.originCity === "string" && u.originCity.trim()) setOriginCity(u.originCity.trim());
     if (u.flightBudget && typeof u.flightBudget.amount === "number") setFlightBudget(u.flightBudget);
+    if (u.accommodationBudget && typeof u.accommodationBudget.amount === "number") setAccommodationBudget(u.accommodationBudget);
+    if (typeof u.accommodationType === "string" && u.accommodationType.trim()) setAccommodationType(u.accommodationType.trim());
     if (u.airlinePreferences) setAirlinePreferences(u.airlinePreferences);
   }, []);
 
