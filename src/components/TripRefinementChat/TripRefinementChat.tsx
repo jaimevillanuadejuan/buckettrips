@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useSession } from "next-auth/react";
-import type { TripItinerary } from "@/types/itinerary";
+import { normalizeTripItinerary, type TripItinerary } from "@/types/itinerary";
 import { apiFetch } from "@/lib/api";
 
 const BACKEND_BASE_URL =
@@ -95,7 +95,7 @@ export default function TripRefinementChat({ itinerary, onItineraryUpdate, tripI
       const data = await res.json() as { itinerary?: unknown; reply?: string };
       if (!res.ok) throw new Error("Refine request failed");
 
-      const updated = data.itinerary as TripItinerary;
+      const updated = normalizeTripItinerary(data.itinerary) ?? itineraryRef.current;
       onItineraryUpdate(updated);
       itineraryRef.current = updated;
 

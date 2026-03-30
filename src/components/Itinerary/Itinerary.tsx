@@ -13,6 +13,7 @@ interface ItineraryProps {
   onSaveTripClick?: () => Promise<SaveTripResult> | SaveTripResult;
   readOnly?: boolean;
   tripId?: string;
+  onItineraryUpdate?: (updated: TripItinerary) => void;
 }
 
 function formatCurrency(value: number, currencyCode: string): string {
@@ -192,6 +193,7 @@ export default function Itinerary({
   onSaveTripClick,
   readOnly = false,
   tripId,
+  onItineraryUpdate,
 }: ItineraryProps) {
   const [itinerary, setItinerary] = useState<TripItinerary>(initialItinerary);
   const [answers, setAnswers] = useState<string[]>(
@@ -219,6 +221,15 @@ export default function Itinerary({
       }
     };
   }, []);
+
+  useEffect(() => {
+    setItinerary(initialItinerary);
+  }, [initialItinerary]);
+
+  const applyItineraryUpdate = (updated: TripItinerary) => {
+    setItinerary(updated);
+    onItineraryUpdate?.(updated);
+  };
 
   const handleAnswerChange = (index: number, value: string) => {
     clearSaveNotice();
@@ -381,7 +392,7 @@ export default function Itinerary({
       </section>
 
       {readOnly && (
-        <TripRefinementChat itinerary={itinerary} onItineraryUpdate={setItinerary} tripId={tripId} />
+        <TripRefinementChat itinerary={itinerary} onItineraryUpdate={applyItineraryUpdate} tripId={tripId} />
       )}
 
       {!readOnly && (
@@ -401,7 +412,7 @@ export default function Itinerary({
               </div>
             )}
           </div>
-          <TripRefinementChat itinerary={itinerary} onItineraryUpdate={setItinerary} />
+          <TripRefinementChat itinerary={itinerary} onItineraryUpdate={applyItineraryUpdate} />
         </>
       )}
     </div>

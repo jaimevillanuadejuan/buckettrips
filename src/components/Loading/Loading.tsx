@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import FlightResults from "@/components/FlightResults/FlightResults";
 import HotelResults from "@/components/HotelResults/HotelResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
-import { normalizeTripItinerary } from "@/types/itinerary";
+import MultiDestinationOverview from "@/components/MultiDestinationOverview/MultiDestinationOverview";
+import { normalizeTripItinerary, type TripItinerary } from "@/types/itinerary";
 import type { SaveTripResult } from "@/types/saved-trip";
 
 interface LoadingProps {
@@ -22,6 +23,7 @@ interface LoadingProps {
   tripOriginCity?: string | null;
   tripFlightBudget?: { amount: number; currency: string } | null;
   tripAccommodationBudget?: { amount: number; currency: string } | null;
+  onItineraryRefined?: (updated: TripItinerary) => void;
 }
 
 export default function Loading({
@@ -38,6 +40,7 @@ export default function Loading({
   tripOriginCity,
   tripFlightBudget,
   tripAccommodationBudget,
+  onItineraryRefined,
 }: LoadingProps) {
   const responseText =
     typeof response === "string"
@@ -46,6 +49,9 @@ export default function Loading({
       ? JSON.stringify(response, null, 2)
       : "";
   const itinerary = normalizeTripItinerary(response);
+  const isCountryTrip =
+    itinerary?.tripOverview.tripScope === "COUNTRY" &&
+    (itinerary.destinations?.length ?? 0) > 1;
   const shouldCenterLoadingState = isLoading && !error && !response;
 
   return (
@@ -100,7 +106,7 @@ export default function Loading({
 
       {!error && !isLoading && itinerary && (
         <>
-          {tripStartDate && tripEndDate && location && (
+          {!isCountryTrip && tripStartDate && tripEndDate && location && (
             <FlightResults
               destination={location}
               startDate={tripStartDate}
@@ -109,11 +115,19 @@ export default function Loading({
               flightBudget={tripFlightBudget}
             />
           )}
-          {tripStartDate && tripEndDate && location && (
+          {!isCountryTrip && tripStartDate && tripEndDate && location && (
             <HotelResults
               destination={location}
               startDate={tripStartDate}
               endDate={tripEndDate}
+              accommodationBudget={tripAccommodationBudget}
+            />
+          )}
+          {isCountryTrip && (
+            <MultiDestinationOverview
+              itinerary={itinerary}
+              originCity={tripOriginCity}
+              flightBudget={tripFlightBudget}
               accommodationBudget={tripAccommodationBudget}
             />
           )}
@@ -123,6 +137,7 @@ export default function Loading({
             onSubmitFollowUpAnswers={onSubmitFollowUpAnswers}
             onSaveTripClick={onSaveTripClick}
             readOnly={readOnly}
+            onItineraryUpdate={onItineraryRefined}
           />
         </>
       )}

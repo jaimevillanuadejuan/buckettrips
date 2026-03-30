@@ -10,6 +10,84 @@ export interface TripOverview {
   currencyCode: string;
   currencySymbol: string;
   keyAssumptions: string[];
+  tripScope?: "CITY" | "COUNTRY";
+  countryCode?: string | null;
+}
+
+export interface DestinationStop {
+  stopOrder: number;
+  cityName: string;
+  countryCode: string;
+  latitude: number;
+  longitude: number;
+  startDate: string;
+  endDate: string;
+  nights: number;
+}
+
+export interface TripLeg {
+  legOrder: number;
+  fromStopOrder: number;
+  toStopOrder: number;
+  fromName: string;
+  toName: string;
+  mode: "flight" | "train";
+  departureDate: string;
+}
+
+export interface RouteGeoJson {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: number[][];
+  };
+  properties?: Record<string, unknown>;
+}
+
+export interface FlightOption {
+  airline: string;
+  airlineLogo: string;
+  price: number;
+  currency: string;
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  stops: number;
+  deepLinkUrl: string;
+}
+
+export interface FlightSuggestionsByLeg {
+  legOrder: number;
+  fromStopOrder: number;
+  toStopOrder: number;
+  fromName: string;
+  toName: string;
+  mode: "flight" | "train";
+  departureDate: string;
+  adjustedFromDate: string | null;
+  fallbackBookingUrl: string | null;
+  options: FlightOption[];
+}
+
+export interface HotelOption {
+  name: string;
+  stars: number | null;
+  overallRating: number | null;
+  reviews: number | null;
+  pricePerNight: number | null;
+  currency: string;
+  thumbnailUrl: string | null;
+  deepLinkUrl: string | null;
+  amenities: string[];
+}
+
+export interface HotelSuggestionsByDestination {
+  stopOrder: number;
+  cityName: string;
+  countryCode: string;
+  checkIn: string;
+  checkOut: string;
+  options: HotelOption[];
 }
 
 export interface ItineraryDay {
@@ -35,6 +113,11 @@ export interface TripItinerary {
   dailyItinerary: ItineraryDay[];
   overallBudgetEstimateEur: BudgetRange & { notes: string[] };
   followUpQuestions: FollowUpQuestion[];
+  destinations: DestinationStop[];
+  tripLegs: TripLeg[];
+  routeGeoJson: RouteGeoJson | null;
+  flightSuggestionsByLeg: FlightSuggestionsByLeg[];
+  hotelSuggestionsByDestination: HotelSuggestionsByDestination[];
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -160,6 +243,188 @@ function normalizeFollowUps(value: unknown): FollowUpQuestion[] {
     .filter((entry): entry is FollowUpQuestion => entry !== null);
 }
 
+function normalizeDestinationStop(
+  value: unknown,
+  index: number,
+): DestinationStop | null {
+  if (!isObject(value)) return null;
+
+  const cityName =
+    typeof value.cityName === "string" ? value.cityName.trim() : "";
+  const countryCode =
+    typeof value.countryCode === "string" ? value.countryCode.trim().toUpperCase() : "";
+  const latitude = toNumber(value.latitude);
+  const longitude = toNumber(value.longitude);
+
+  if (
+    cityName.length === 0 ||
+    countryCode.length === 0 ||
+    latitude === null ||
+    longitude === null
+  ) {
+    return null;
+  }
+
+  return {
+    stopOrder: toNumber(value.stopOrder) ?? index + 1,
+    cityName,
+    countryCode,
+    latitude,
+    longitude,
+    startDate: typeof value.startDate === "string" ? value.startDate : "TBD",
+    endDate: typeof value.endDate === "string" ? value.endDate : "TBD",
+    nights: toNumber(value.nights) ?? 0,
+  };
+}
+
+function normalizeTripLeg(value: unknown, index: number): TripLeg | null {
+  if (!isObject(value)) return null;
+
+  const fromName = typeof value.fromName === "string" ? value.fromName.trim() : "";
+  const toName = typeof value.toName === "string" ? value.toName.trim() : "";
+  const modeRaw = typeof value.mode === "string" ? value.mode.toLowerCase() : "flight";
+
+  if (fromName.length === 0 || toName.length === 0) {
+    return null;
+  }
+
+  return {
+    legOrder: toNumber(value.legOrder) ?? index + 1,
+    fromStopOrder: toNumber(value.fromStopOrder) ?? index + 1,
+    toStopOrder: toNumber(value.toStopOrder) ?? index + 2,
+    fromName,
+    toName,
+    mode: modeRaw === "train" ? "train" : "flight",
+    departureDate:
+      typeof value.departureDate === "string" ? value.departureDate : "TBD",
+  };
+}
+
+function normalizeRouteGeoJson(value: unknown): RouteGeoJson | null {
+  if (!isObject(value)) return null;
+  if (value.type !== "Feature") return null;
+  if (!isObject(value.geometry) || value.geometry.type !== "LineString") return null;
+  if (!Array.isArray(value.geometry.coordinates)) return null;
+
+  const coordinates = value.geometry.coordinates
+    .map((pair) => {
+      if (!Array.isArray(pair) || pair.length < 2) return null;
+      const lng = toNumber(pair[0]);
+      const lat = toNumber(pair[1]);
+      if (lng === null || lat === null) return null;
+      return [lng, lat];
+    })
+    .filter((pair): pair is number[] => pair !== null);
+
+  if (coordinates.length < 2) return null;
+
+  return {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates,
+    },
+    properties: isObject(value.properties) ? value.properties : {},
+  };
+}
+
+function normalizeFlightOption(value: unknown): FlightOption | null {
+  if (!isObject(value)) return null;
+  return {
+    airline: typeof value.airline === "string" ? value.airline : "Unknown airline",
+    airlineLogo: typeof value.airlineLogo === "string" ? value.airlineLogo : "",
+    price: toNumber(value.price) ?? 0,
+    currency: typeof value.currency === "string" ? value.currency : "USD",
+    departureTime: typeof value.departureTime === "string" ? value.departureTime : "",
+    arrivalTime: typeof value.arrivalTime === "string" ? value.arrivalTime : "",
+    duration: typeof value.duration === "string" ? value.duration : "",
+    stops: toNumber(value.stops) ?? 0,
+    deepLinkUrl: typeof value.deepLinkUrl === "string" ? value.deepLinkUrl : "",
+  };
+}
+
+function normalizeFlightSuggestionsByLeg(value: unknown): FlightSuggestionsByLeg[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry, index): FlightSuggestionsByLeg | null => {
+      if (!isObject(entry)) return null;
+      const options = Array.isArray(entry.options)
+        ? entry.options
+            .map((option) => normalizeFlightOption(option))
+            .filter((option): option is FlightOption => option !== null)
+        : [];
+
+      return {
+        legOrder: toNumber(entry.legOrder) ?? index + 1,
+        fromStopOrder: toNumber(entry.fromStopOrder) ?? index + 1,
+        toStopOrder: toNumber(entry.toStopOrder) ?? index + 2,
+        fromName: typeof entry.fromName === "string" ? entry.fromName : "Origin",
+        toName: typeof entry.toName === "string" ? entry.toName : "Destination",
+        mode:
+          typeof entry.mode === "string" && entry.mode.toLowerCase() === "train"
+            ? "train"
+            : "flight",
+        departureDate:
+          typeof entry.departureDate === "string" ? entry.departureDate : "TBD",
+        adjustedFromDate:
+          typeof entry.adjustedFromDate === "string"
+            ? entry.adjustedFromDate
+            : null,
+        fallbackBookingUrl:
+          typeof entry.fallbackBookingUrl === "string"
+            ? entry.fallbackBookingUrl
+            : null,
+        options,
+      };
+    })
+    .filter((entry): entry is FlightSuggestionsByLeg => entry !== null);
+}
+
+function normalizeHotelOption(value: unknown): HotelOption | null {
+  if (!isObject(value)) return null;
+  return {
+    name: typeof value.name === "string" ? value.name : "Hotel",
+    stars: toNumber(value.stars),
+    overallRating: toNumber(value.overallRating),
+    reviews: toNumber(value.reviews),
+    pricePerNight: toNumber(value.pricePerNight),
+    currency: typeof value.currency === "string" ? value.currency : "USD",
+    thumbnailUrl:
+      typeof value.thumbnailUrl === "string" ? value.thumbnailUrl : null,
+    deepLinkUrl: typeof value.deepLinkUrl === "string" ? value.deepLinkUrl : null,
+    amenities: toStringArray(value.amenities),
+  };
+}
+
+function normalizeHotelSuggestionsByDestination(
+  value: unknown,
+): HotelSuggestionsByDestination[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry, index) => {
+      if (!isObject(entry)) return null;
+      const options = Array.isArray(entry.options)
+        ? entry.options
+            .map((option) => normalizeHotelOption(option))
+            .filter((option): option is HotelOption => option !== null)
+        : [];
+      return {
+        stopOrder: toNumber(entry.stopOrder) ?? index + 1,
+        cityName: typeof entry.cityName === "string" ? entry.cityName : "City",
+        countryCode:
+          typeof entry.countryCode === "string"
+            ? entry.countryCode.toUpperCase()
+            : "",
+        checkIn: typeof entry.checkIn === "string" ? entry.checkIn : "TBD",
+        checkOut: typeof entry.checkOut === "string" ? entry.checkOut : "TBD",
+        options,
+      };
+    })
+    .filter((entry): entry is HotelSuggestionsByDestination => entry !== null);
+}
+
 export function normalizeTripItinerary(value: unknown): TripItinerary | null {
   if (typeof value === "string") {
     try {
@@ -179,6 +444,20 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
     : [];
   const overallBudgetRaw = findOverallBudgetField(value);
   const overallBudget = isObject(overallBudgetRaw) ? overallBudgetRaw : {};
+  const destinationsRaw = Array.isArray(value.destinations) ? value.destinations : [];
+  const tripLegsRaw = Array.isArray(value.tripLegs) ? value.tripLegs : [];
+
+  const tripScopeRaw =
+    overview && typeof overview.tripScope === "string"
+      ? overview.tripScope.toUpperCase()
+      : "CITY";
+  const tripScope = tripScopeRaw === "COUNTRY" ? "COUNTRY" : "CITY";
+  const countryCode =
+    overview &&
+    typeof overview.countryCode === "string" &&
+    overview.countryCode.trim().length > 0
+      ? overview.countryCode.trim().toUpperCase()
+      : null;
 
   const normalized: TripItinerary = {
     tripOverview: {
@@ -197,12 +476,14 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
       currencyCode:
         overview && typeof overview.currencyCode === "string" && overview.currencyCode.trim()
           ? overview.currencyCode.trim().toUpperCase()
-          : "EUR",
+          : "USD",
       currencySymbol:
         overview && typeof overview.currencySymbol === "string" && overview.currencySymbol.trim()
           ? overview.currencySymbol.trim()
-          : "€",
+          : "$",
       keyAssumptions: toStringArray(overview?.keyAssumptions),
+      tripScope,
+      countryCode,
     },
     dailyItinerary: dailyRaw
       .map((day, index) => normalizeDay(day, index))
@@ -212,6 +493,19 @@ export function normalizeTripItinerary(value: unknown): TripItinerary | null {
       notes: toStringArray(overallBudget.notes),
     },
     followUpQuestions: normalizeFollowUps(value.followUpQuestions),
+    destinations: destinationsRaw
+      .map((entry, index) => normalizeDestinationStop(entry, index))
+      .filter((entry): entry is DestinationStop => entry !== null),
+    tripLegs: tripLegsRaw
+      .map((entry, index) => normalizeTripLeg(entry, index))
+      .filter((entry): entry is TripLeg => entry !== null),
+    routeGeoJson: normalizeRouteGeoJson(value.routeGeoJson),
+    flightSuggestionsByLeg: normalizeFlightSuggestionsByLeg(
+      value.flightSuggestionsByLeg,
+    ),
+    hotelSuggestionsByDestination: normalizeHotelSuggestionsByDestination(
+      value.hotelSuggestionsByDestination,
+    ),
   };
 
   if (normalized.dailyItinerary.length === 0) {
