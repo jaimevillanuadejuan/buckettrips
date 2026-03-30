@@ -65,6 +65,8 @@ export default function VoiceTripBuilder() {
 
   // ── trip context ──────────────────────────────────────────────────────────
   const [stepIndex,             setStepIndex]             = useState(0);
+  const [tripScope,             setTripScope]             = useState<"CITY" | "COUNTRY">("CITY");
+  const [countryCode,           setCountryCode]           = useState<string | null>(null);
   const [destinationRaw,        setDestinationRaw]        = useState("");
   const [resolvedRegion,        setResolvedRegion]        = useState("");
   const [destinationConfidence, setDestinationConfidence] = useState(0.55);
@@ -174,6 +176,8 @@ export default function VoiceTripBuilder() {
     const label = STYLE_OPTIONS.find(o => o.code === accommodationStyle)?.label
       ?? labelize(accommodationStyle);
     return {
+      tripScope,
+      countryCode,
       destination: {
         raw_input: destinationRaw,
         resolved_region: resolvedRegion || destinationRaw,
@@ -200,6 +204,7 @@ export default function VoiceTripBuilder() {
       originCity,
     };
   }, [
+    tripScope, countryCode,
     destinationRaw, resolvedRegion, destinationConfidence,
     durationMin, durationMax, season, seasonMoods,
     exactStartDate, exactEndDate, companions, companionCount,
@@ -211,6 +216,8 @@ export default function VoiceTripBuilder() {
   // ── apply backend updates ─────────────────────────────────────────────────
   const applyUpdates = useCallback((u?: Partial<TripContext>) => {
     if (!u) return;
+    if (u.tripScope === "COUNTRY" || u.tripScope === "CITY") setTripScope(u.tripScope);
+    if (typeof u.countryCode === "string" && u.countryCode.trim()) setCountryCode(u.countryCode.trim().toUpperCase());
     if (u.destination) {
       if (typeof u.destination.raw_input       === "string") setDestinationRaw(u.destination.raw_input);
       if (typeof u.destination.resolved_region === "string") setResolvedRegion(u.destination.resolved_region);

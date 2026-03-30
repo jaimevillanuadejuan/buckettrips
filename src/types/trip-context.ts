@@ -1,4 +1,6 @@
-﻿export interface TripContext {
+export interface TripContext {
+  tripScope?: "CITY" | "COUNTRY";
+  countryCode?: string | null;
   destination: {
     raw_input: string;
     resolved_region: string;
@@ -43,7 +45,7 @@
 export interface ContextualQuestion {
   id: string;
   question: string;
-  answerType: 'yes_no' | 'a_b' | 'free_text';
+  answerType: "yes_no" | "a_b" | "free_text";
   options?: string[];
   whyItMatters: string;
 }

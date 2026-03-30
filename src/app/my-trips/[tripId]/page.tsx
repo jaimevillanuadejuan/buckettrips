@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import FlightResults from "@/components/FlightResults/FlightResults";
 import HotelResults from "@/components/HotelResults/HotelResults";
 import Itinerary from "@/components/Itinerary/Itinerary";
+import MultiDestinationOverview from "@/components/MultiDestinationOverview/MultiDestinationOverview";
 import { normalizeTripItinerary } from "@/types/itinerary";
 import type { SavedTripDetail } from "@/types/saved-trip";
 import { apiFetch } from "@/lib/api";
@@ -19,7 +20,28 @@ export default function MyTripDetailPage() {
   const [trip, setTrip] = useState<SavedTripDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const normalizedItinerary = normalizeTripItinerary(trip?.itinerary ?? null);
+  const itineraryPayload =
+    trip && trip.itinerary && typeof trip.itinerary === "object"
+      ? {
+          ...(trip.itinerary as Record<string, unknown>),
+          routeGeoJson:
+            (trip.itinerary as Record<string, unknown>).routeGeoJson ??
+            trip.routeGeoJson ??
+            null,
+          destinations:
+            (trip.itinerary as Record<string, unknown>).destinations ??
+            trip.destinations ??
+            [],
+          tripLegs:
+            (trip.itinerary as Record<string, unknown>).tripLegs ??
+            trip.legs ??
+            [],
+        }
+      : trip?.itinerary ?? null;
+  const normalizedItinerary = normalizeTripItinerary(itineraryPayload);
+  const isCountryTrip =
+    normalizedItinerary?.tripOverview.tripScope === "COUNTRY" &&
+    (normalizedItinerary.destinations?.length ?? 0) > 1;
 
   useEffect(() => {
     if (!tripId) {
@@ -75,7 +97,7 @@ export default function MyTripDetailPage() {
 
       {!isLoading && trip && normalizedItinerary && (
         <>
-          {trip.startDate && trip.endDate && trip.location && (
+          {!isCountryTrip && trip.startDate && trip.endDate && trip.location && (
             <FlightResults
               destination={trip.location}
               startDate={trip.startDate}
@@ -84,11 +106,19 @@ export default function MyTripDetailPage() {
               flightBudget={trip.flightBudget}
             />
           )}
-          {trip.startDate && trip.endDate && trip.location && (
+          {!isCountryTrip && trip.startDate && trip.endDate && trip.location && (
             <HotelResults
               destination={trip.location}
               startDate={trip.startDate}
               endDate={trip.endDate}
+              accommodationBudget={trip.accommodationBudget}
+            />
+          )}
+          {isCountryTrip && (
+            <MultiDestinationOverview
+              itinerary={normalizedItinerary}
+              originCity={trip.originCity}
+              flightBudget={trip.flightBudget}
               accommodationBudget={trip.accommodationBudget}
             />
           )}
@@ -98,6 +128,35 @@ export default function MyTripDetailPage() {
             readOnly
             tripId={tripId}
             onSubmitFollowUpAnswers={() => undefined}
+            onItineraryUpdate={(updated) => {
+              setTrip((previous) => {
+                if (!previous) return previous;
+                return {
+                  ...previous,
+                  itinerary: updated,
+                  scope: updated.tripOverview.tripScope ?? previous.scope,
+                  countryCode: updated.tripOverview.countryCode ?? previous.countryCode,
+                  routeGeoJson: (updated.routeGeoJson as Record<string, unknown> | null) ?? previous.routeGeoJson ?? null,
+                  destinations: updated.destinations.map((stop) => ({
+                    stopOrder: stop.stopOrder,
+                    cityName: stop.cityName,
+                    countryCode: stop.countryCode,
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                    startDate: stop.startDate,
+                    endDate: stop.endDate,
+                    nights: stop.nights,
+                  })),
+                  legs: updated.tripLegs.map((leg) => ({
+                    legOrder: leg.legOrder,
+                    fromStopOrder: leg.fromStopOrder,
+                    toStopOrder: leg.toStopOrder,
+                    mode: leg.mode,
+                    departureDate: leg.departureDate,
+                  })),
+                };
+              });
+            }}
           />
         </>
       )}

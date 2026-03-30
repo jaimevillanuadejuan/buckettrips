@@ -300,6 +300,11 @@ export default function TripLoadingPage() {
             flightBudget: tripContextRef.current?.flightBudget ?? null,
             accommodationBudget: tripContextRef.current?.accommodationBudget ?? null,
             accommodationType: tripContextRef.current?.accommodationType ?? null,
+            scope: normalizedItinerary.tripOverview.tripScope ?? "CITY",
+            countryCode: normalizedItinerary.tripOverview.countryCode ?? null,
+            routeGeoJson: normalizedItinerary.routeGeoJson ?? null,
+            destinations: normalizedItinerary.destinations ?? [],
+            legs: normalizedItinerary.tripLegs ?? [],
           }),
         }, profileId);
 
@@ -350,6 +355,7 @@ export default function TripLoadingPage() {
       tripOriginCity={tripContextRef.current?.originCity}
       tripFlightBudget={tripContextRef.current?.flightBudget}
       tripAccommodationBudget={tripContextRef.current?.accommodationBudget}
+      onItineraryRefined={(updated) => setResponse(updated)}
     />
   );
 }
