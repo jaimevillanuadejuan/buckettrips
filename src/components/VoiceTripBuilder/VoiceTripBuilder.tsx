@@ -134,6 +134,10 @@ export default function VoiceTripBuilder() {
   const streamRef      = useRef<MediaStream | null>(null);
   const rafRef         = useRef<number | null>(null);
   const accTextRef     = useRef("");
+  const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speechKickRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listenRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speechPrimedRef  = useRef(false);
 
   const setPhaseSync = useCallback((p: Phase) => {
     phaseRef.current = p;
@@ -270,8 +274,106 @@ export default function VoiceTripBuilder() {
 
   const startListeningRef = useRef<() => void>(() => {});
 
+  const clearSpeechTimers = useCallback(() => {
+    if (speechKickRef.current) {
+      clearTimeout(speechKickRef.current);
+      speechKickRef.current = null;
+    }
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearListenRestart = useCallback(() => {
+    if (listenRestartRef.current) {
+      clearTimeout(listenRestartRef.current);
+      listenRestartRef.current = null;
+    }
+  }, []);
+
+  const scheduleListeningRestart = useCallback((delay = 600) => {
+    clearListenRestart();
+    listenRestartRef.current = setTimeout(() => {
+      listenRestartRef.current = null;
+      startListeningRef.current();
+    }, delay);
+  }, [clearListenRestart]);
+
+  const primeSpeechSynthesis = useCallback(() => {
+    if (speechPrimedRef.current || typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const synth = window.speechSynthesis;
+    if (synth.speaking || synth.pending || phaseRef.current === "speaking") return;
+
+    const unlock = new SpeechSynthesisUtterance(" ");
+    unlock.lang = "en-US";
+    unlock.volume = 0;
+
+    const voices = synth.getVoices();
+    if (voices.length) {
+      voicesRef.current = voices;
+      unlock.voice =
+        voices.find(v => v.lang === "en-US" && !v.localService) ??
+        voices.find(v => v.lang.startsWith("en")) ??
+        voices[0] ??
+        null;
+    }
+
+    try {
+      synth.speak(unlock);
+      synth.resume();
+      speechPrimedRef.current = true;
+      setTimeout(() => {
+        if (synth.speaking || synth.pending) synth.cancel();
+      }, 0);
+    } catch {
+      /* mobile browsers can reject until first user gesture */
+    }
+  }, []);
+
+  const interruptAgentSpeech = useCallback(() => {
+    clearSpeechTimers();
+    clearListenRestart();
+    if (silenceRef.current) {
+      clearTimeout(silenceRef.current);
+      silenceRef.current = null;
+    }
+    accTextRef.current = "";
+    setError(null);
+    window.speechSynthesis?.cancel();
+    setPhaseSync("idle");
+    if (micOnRef.current && !micBlockedRef.current && viewModeRef.current === "voice") {
+      scheduleListeningRestart(0);
+    }
+  }, [clearListenRestart, clearSpeechTimers, scheduleListeningRestart, setPhaseSync]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const unlock = () => primeSpeechSynthesis();
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("touchstart", unlock, { passive: true });
+    window.addEventListener("keydown", unlock);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, [primeSpeechSynthesis]);
+
+  useEffect(() => () => {
+    clearSpeechTimers();
+    clearListenRestart();
+    window.speechSynthesis?.cancel();
+  }, [clearListenRestart, clearSpeechTimers]);
+
   // ── speak ─────────────────────────────────────────────────────────────────
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((
+    text: string,
+    options?: { onComplete?: () => void; restartListening?: boolean },
+  ) => {
     if (!text) return;
     setAgentText(text);
     setError(null);
@@ -279,16 +381,20 @@ export default function VoiceTripBuilder() {
     // Clear any pending silence timer so recognition doesn't fire while speaking
     if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
     accTextRef.current = "";
+    clearListenRestart();
+    clearSpeechTimers();
     setPhaseSync("speaking");
 
     if (typeof window === "undefined" || !window.speechSynthesis) {
       setPhaseSync("idle");
-      startListeningRef.current();
+      options?.onComplete?.();
+      if (options?.restartListening !== false) startListeningRef.current();
       return;
     }
 
     const synth = window.speechSynthesis;
     synth.cancel();
+    synth.resume();
 
     const utt = new SpeechSynthesisUtterance(text);
     utt.lang  = "en-US";
@@ -302,35 +408,47 @@ export default function VoiceTripBuilder() {
       voices[0];
     if (voice) utt.voice = voice;
 
-    utt.onend = () => {
-      clearTimeout(synthTimeout);
+    let finished = false;
+    const finishSpeaking = () => {
+      if (finished) return;
+      finished = true;
+      clearSpeechTimers();
       setPhaseSync("idle");
-      setTimeout(() => startListeningRef.current(), 600);
+      options?.onComplete?.();
+      if (options?.restartListening !== false) scheduleListeningRestart(600);
+    };
+
+    utt.onend = () => {
+      finishSpeaking();
     };
     utt.onerror = (e) => {
-      clearTimeout(synthTimeout);
       const errCode = (e as SpeechSynthesisErrorEvent).error;
-      if (errCode === "interrupted") return;
-      setPhaseSync("idle");
-      setTimeout(() => startListeningRef.current(), 600);
+      if (errCode === "interrupted" || errCode === "canceled") {
+        if (finished) return;
+        finished = true;
+        clearSpeechTimers();
+        return;
+      }
+      finishSpeaking();
     };
 
     synth.speak(utt);
 
     // Chromium bug: synthesis can stall silently — kick it after 250ms
-    setTimeout(() => {
+    speechKickRef.current = setTimeout(() => {
+      speechKickRef.current = null;
       if (synth.speaking) synth.resume();
     }, 250);
 
     // Safety fallback: if synthesis never fires onend within 30s, recover
-    const synthTimeout = setTimeout(() => {
+    speechTimeoutRef.current = setTimeout(() => {
+      speechTimeoutRef.current = null;
       if (phaseRef.current === "speaking") {
         synth.cancel();
-        setPhaseSync("idle");
-        setTimeout(() => startListeningRef.current(), 300);
+        finishSpeaking();
       }
     }, 30_000);
-  }, [addLine, setPhaseSync]);
+  }, [addLine, clearListenRestart, clearSpeechTimers, scheduleListeningRestart, setPhaseSync]);
 
   // ── main conversation handler ─────────────────────────────────────────────
   const handleUtterance = useCallback(async (raw: string) => {
@@ -390,12 +508,13 @@ export default function VoiceTripBuilder() {
         const ctx = buildContext(true);
         ctx.travel_dates.exact_start = updStart;
         ctx.travel_dates.exact_end   = updEnd;
-        // Speak the reply first, then redirect after speech ends
-        speak(reply);
-        setTimeout(() => {
-          sessionStorage.setItem("tripContext", JSON.stringify(ctx));
-          router.push("/new-trip/loading");
-        }, 2500);
+        speak(reply, {
+          restartListening: false,
+          onComplete: () => {
+            sessionStorage.setItem("tripContext", JSON.stringify(ctx));
+            router.push("/new-trip/loading");
+          },
+        });
         return;
       }
 
@@ -420,7 +539,7 @@ export default function VoiceTripBuilder() {
 
   // ── start listening ───────────────────────────────────────────────────────
   const startListening = useCallback(() => {
-    if (!micOnRef.current || micBlockedRef.current) return;
+    if (!micOnRef.current || micBlockedRef.current || viewModeRef.current !== "voice") return;
     if (phaseRef.current !== "idle") return;
     accTextRef.current = "";
     setPhaseSync("listening");
@@ -448,6 +567,11 @@ export default function VoiceTripBuilder() {
       setPhaseSync("listening");
       setError(null);
       accTextRef.current = "";
+    };
+
+    rec.onspeechstart = () => {
+      if (viewModeRef.current !== "voice" || phaseRef.current === "processing") return;
+      if (phaseRef.current === "speaking") interruptAgentSpeech();
     };
 
     rec.onresult = (event: any) => {
@@ -482,6 +606,7 @@ export default function VoiceTripBuilder() {
         if (!committed) return;
         // transition to processing before stopping so onend sees the right phase
         setPhaseSync("processing");
+        clearListenRestart();
         try { rec.stop(); } catch { /* ignore */ }
         void handleUtterance(committed);
       }, SILENCE_MS);
@@ -517,12 +642,13 @@ export default function VoiceTripBuilder() {
     return () => {
       if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
       rec.onstart  = null;
+      rec.onspeechstart = null;
       rec.onresult = null;
       rec.onerror  = null;
       rec.onend    = null;
       try { rec.abort(); } catch { /* ignore */ }
     };
-  }, [handleUtterance, setPhaseSync, startListening]);
+  }, [clearListenRestart, handleUtterance, interruptAgentSpeech, setPhaseSync, startListening]);
 
   // ── audio level meter ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -565,10 +691,17 @@ export default function VoiceTripBuilder() {
 
   // ── mic toggle ────────────────────────────────────────────────────────────
   const toggleMic = () => {
+    if (phaseRef.current === "speaking" && micOnRef.current && viewModeRef.current === "voice") {
+      interruptAgentSpeech();
+      return;
+    }
+
     const next = !micOn;
     micOnRef.current = next;
     setMicOn(next);
     if (!next) {
+      clearListenRestart();
+      clearSpeechTimers();
       if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
       accTextRef.current = "";
       try { recognitionRef.current?.abort(); } catch { /* ignore */ }
@@ -576,6 +709,7 @@ export default function VoiceTripBuilder() {
       setPhaseSync("idle");
     } else {
       micBlockedRef.current = false;
+      primeSpeechSynthesis();
       setTimeout(() => startListening(), 150);
     }
   };
@@ -616,11 +750,15 @@ export default function VoiceTripBuilder() {
                 viewModeRef.current = mode;
                 setViewMode(mode);
                 if (mode === "chat") {
+                  clearListenRestart();
+                  clearSpeechTimers();
                   if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
                   accTextRef.current = "";
                   try { recognitionRef.current?.abort(); } catch { /* ignore */ }
+                  window.speechSynthesis?.cancel();
                   setPhaseSync("idle");
                 } else {
+                  primeSpeechSynthesis();
                   setTimeout(() => startListeningRef.current(), 150);
                 }
               }}
@@ -651,7 +789,17 @@ export default function VoiceTripBuilder() {
           <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center max-w-[520px] w-full">
 
             {/* Orb */}
-            <div className="w-[200px] h-[200px] rounded-full flex items-center justify-center bg-white/60 shadow-[0_20px_48px_rgba(12,45,72,0.14)]">
+            <button
+              type="button"
+              onPointerDown={() => {
+                if (phase === "speaking") interruptAgentSpeech();
+              }}
+              className={[
+                "w-[200px] h-[200px] rounded-full flex items-center justify-center bg-white/60 shadow-[0_20px_48px_rgba(12,45,72,0.14)]",
+                phase === "speaking" ? "cursor-pointer" : "cursor-default",
+              ].join(" ")}
+              aria-label={phase === "speaking" ? "Interrupt the agent and start listening" : "Voice status indicator"}
+            >
               <div
                 className="relative w-[130px] h-[130px] rounded-full overflow-hidden transition-transform duration-75"
                 style={{
@@ -672,12 +820,18 @@ export default function VoiceTripBuilder() {
                   <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: "rgba(255,255,255,0.22)" }} />
                 )}
               </div>
-            </div>
+            </button>
 
             {/* Status label */}
             <p className="text-[0.8rem] tracking-[0.2em] uppercase text-[var(--foreground)] opacity-70">
               {statusLabel}
             </p>
+
+            {phase === "speaking" && (
+              <p className="text-[0.74rem] text-[rgba(12,45,72,0.5)]">
+                Tap the orb or mic to interrupt and reply right away.
+              </p>
+            )}
 
             {/* Agent reply */}
             {agentText && (
